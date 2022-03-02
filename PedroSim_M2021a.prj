@@ -1,0 +1,93 @@
+<deployment-project plugin="plugin.apptool" plugin-version="1.0">
+  <configuration build-checksum="4121573676" file="C:\Users\Pedro\OneDrive - Liverpool John Moores University\MATLAB\PedroSim\PedroSim_M2021a.prj" location="C:\Users\Pedro\OneDrive - Liverpool John Moores University\MATLAB\PedroSim" name="PedroSim_M2021a" target="target.mlapps" target-name="Package App">
+    <param.appname>PedroSim_M2021a</param.appname>
+    <param.authnamewatermark>Pedro Freitas</param.authnamewatermark>
+    <param.email>P.N.Freitas@2017.ljmu.ac.uk</param.email>
+    <param.company>LJMU</param.company>
+    <param.icon />
+    <param.icons />
+    <param.summary>Simulation Framework for testing RRAM non-idealities on standard NN training and inference algorithms</param.summary>
+    <param.description />
+    <param.screenshot>C:\Users\Pedro\AppData\Local\Temp\tp4d0ed115_44e9_4f0f_8f2c_e5a2629ad6d1.png</param.screenshot>
+    <param.version>0.9</param.version>
+    <param.products.name>
+      <item>MATLAB</item>
+      <item>Curve Fitting Toolbox</item>
+      <item>Deep Learning Toolbox</item>
+      <item>Image Processing Toolbox</item>
+      <item>Parallel Computing Toolbox</item>
+      <item>Statistics and Machine Learning Toolbox</item>
+    </param.products.name>
+    <param.products.id>
+      <item>1</item>
+      <item>60</item>
+      <item>12</item>
+      <item>17</item>
+      <item>80</item>
+      <item>19</item>
+    </param.products.id>
+    <param.products.version>
+      <item>9.10</item>
+      <item>3.5.13</item>
+      <item>14.2</item>
+      <item>11.3</item>
+      <item>7.4</item>
+      <item>12.1</item>
+    </param.products.version>
+    <param.platforms />
+    <param.output>C:\Users\Pedro\Documents\PedroSim_Pkg_M2021a</param.output>
+    <param.guid>39e39133-12c9-4f0c-ba36-2df77714d1ed</param.guid>
+    <unset>
+      <param.icon />
+      <param.icons />
+      <param.description />
+      <param.platforms />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}\PedroSimApp_M2021a.mlapp</file>
+    </fileset.main>
+    <fileset.depfun />
+    <fileset.resources>
+      <file>${PROJECT_ROOT}\Icons</file>
+      <file>${PROJECT_ROOT}\utils\NNScripts</file>
+      <file>${PROJECT_ROOT}\utils\VariabilityAnalysis</file>
+    </fileset.resources>
+    <fileset.package />
+    <build-deliverables>
+      <file location="C:\Users\Pedro\Documents" name="PedroSim_Pkg_M2021a" optional="false">C:\Users\Pedro\Documents\PedroSim_Pkg_M2021a</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>C:\Program Files\MATLAB\R2021a</root>
+      <toolboxes>
+        <toolbox name="fixedpoint" />
+        <toolbox name="neuralnetwork" />
+      </toolboxes>
+      <toolbox>
+        <fixedpoint>
+          <enabled>true</enabled>
+        </fixedpoint>
+      </toolbox>
+      <toolbox>
+        <neuralnetwork>
+          <enabled>true</enabled>
+        </neuralnetwork>
+      </toolbox>
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>10.0</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>

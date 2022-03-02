@@ -1,0 +1,7 @@
+[imageInputLayer([28,28,1], 'Name', 'inputlayer')
+    
+    fullyConnectedLayer(30, 'Name', 'fc1')
+    reluLayer('Name', 'relu1')
+
+    fullyConnectedLayer(10, 'Name', 'fc2')
+    softmaxLayer('Name', 'softmax1')];
