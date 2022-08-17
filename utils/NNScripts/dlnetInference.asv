@@ -7,7 +7,6 @@ function [varargout] = dlnetInference(dlnet, InputDatabase, trainOptions, Sessio
 % -Saving the graphs should include Weight Histogram before and after
 % disturbance; GradCam before and after disturbance; Boxplots or CDF with the NN
 % accuracy loss with data from all runs
-% -Do a function for intializing fig2
 
 %% TEMP
 %{
@@ -133,9 +132,8 @@ else
 end
 
 %% Training Progress
-if trainOptions.Plots == "training-progress"
-    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
-end
+[fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
+
 %% Weight Histograms
 if flags.WeightHistogramPlot == true
     fig2 = figure;
@@ -465,10 +463,9 @@ for run = 1:SessionArgs.nRuns
     end
     
     %% Figure reset
-    if trainOptions.Plots == "training-progress"
-        close(fig1);
-        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
-    end
+    close(fig1);
+    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
+    
 end
 %% Save Results
 trainTable = table(total_TrainAcc, total_TrainLoss, 'VariableNames', {'Accuracy', 'Loss'});
@@ -513,23 +510,27 @@ end
 
 %% Functions
 
-function [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize()  
-    fig1 = figure;
-    %Acc
-    subplot(2,1,1);
-    lineAccTrain = animatedline('Color',[0.3010 0.7450 0.9330], 'LineStyle', '-');
-    lineAccValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
-    ylim([0 inf]);
-    xlabel("Iteration");
-    ylabel("Accuracy");
-    grid on;
+function [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions)
+    
+    if trainOptions.Plots == "training-progress"
+        fig1 = figure;
+        %Acc
+        subplot(2,1,1);
+        lineAccTrain = animatedline('Color',[0.3010 0.7450 0.9330], 'LineStyle', '-');
+        lineAccValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
+        ylim([0 inf]);
+        xlabel("Iteration");
+        ylabel("Accuracy");
+        grid on;
 
-    %Loss
-    subplot(2,1,2);
-    lineLossTrain = animatedline('Color',[0.85 0.325 0.098], 'LineStyle', '-');
-    lineLossValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
-    ylim([0 inf]);
-    xlabel("Iteration");
-    ylabel("Loss");
-    grid on;
+        %Loss
+        subplot(2,1,2);
+        lineLossTrain = animatedline('Color',[0.85 0.325 0.098], 'LineStyle', '-');
+        lineLossValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
+        ylim([0 inf]);
+        xlabel("Iteration");
+        ylabel("Loss");
+        grid on;
+    end
+    
 end
