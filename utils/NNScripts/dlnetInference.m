@@ -1,13 +1,9 @@
 function [varargout] = dlnetInference(dlnet, InputDatabase, trainOptions, SessionArgs)
 %ToDo List:
-% -If verbosity: Write last line w/ comparison between Disturbed and
-% Undisturbed NN Accuracy (train and test)
-% -Create table comparing Disturbed and Undisturbed Accuracy loss that will
-% be appended every run
 % -Saving the graphs should include Weight Histogram before and after
 % disturbance; GradCam before and after disturbance; Boxplots or CDF with the NN
 % accuracy loss with data from all runs
-% -Do a function for intializing fig2
+
 
 %% TEMP
 %{
@@ -134,31 +130,12 @@ end
 
 %% Training Progress
 if trainOptions.Plots == "training-progress"
-    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
+    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize();
 end
+
 %% Weight Histograms
 if flags.WeightHistogramPlot == true
-    fig2 = figure;
-    idx = find(dlnet.Learnables.Parameter == "Weights");
-    nLayers = length(idx);
-    for i = 1 : 2*nLayers
-        if i <= nLayers
-            subplot(2, nLayers, i);
-            xlabel('Weight');
-            title(strcat("Layer ", num2str(i), " Weights"));
-        else
-            subplot(2, nLayers, i);
-            xlabel('Gradient');
-            title(strcat("Layer ", num2str(i-nLayers), " Gradients"));
-        end
-        set(gca, 'NextPlot', 'replacechildren');
-    end
-    
-    sgtitle("Epoch: " + "0" + ", Elapsed: " + string(duration(0,0,0)));
-    
-    set(fig2, 'Children', flipud(fig2.Children));
-    
-    clear i;
+    [fig2, nLayers] = fig2_initialize(dlnet);
 end
 
 %% Velocity parameter initialization
@@ -213,6 +190,16 @@ dlnet_0 = dlnet;
 if strcmp(trainOptions.Shuffle, 'once')
     shuffle(mbq);
 end
+
+% Table containing the data for inference (each row is the run #)
+%Inference_table = table(Undisturbed_Train_Acc, Undisturbed_Train_Loss, Undisturbed_Validation_Acc, Undisturbed_Validation_Acc, ...
+%    Disturbed_Train_Acc, Disturbed_Train_Loss, Disturbed_Validation_Acc, Disturbed_Validation_Loss);
+
+Inference_Table = table('Size', [SessionArgs.nRuns, 10], ...
+    'VariableTypes', {'double', 'double', 'double', 'double', 'double', 'double', 'double', 'double', 'double', 'double'}, ...
+    'VariableNames', {'Undisturbed_Train_Acc', 'Disturbed_Train_Acc', 'Undisturbed_Train_Loss', 'Disturbed_Train_Loss', ...
+    'Undisturbed_Validation_Acc', 'Disturbed_Validation_Acc', 'Undisturbed_Validation_Loss', 'Disturbed_Validation_Loss', ...
+    'NN_Train_Acc_Loss', 'NN_Validation_Acc_Loss'});
 
 for run = 1:SessionArgs.nRuns
     dlnet = dlnet_0;
@@ -457,18 +444,49 @@ for run = 1:SessionArgs.nRuns
         break;
     end
     total_ValidationAcc = [total_ValidationAcc ; accuracyValidation];
-    total_ValidationLoss = [total_ValidationLoss ; lossValidation]; 
+    total_ValidationLoss = [total_ValidationLoss ; lossValidation];
+    
+    %% Build table containing inference data
+    Inference_Table.Undisturbed_Train_Acc(run) = total_TrainAcc(end-1);
+    Inference_Table.Disturbed_Train_Acc(run) = total_TrainAcc(end);
+    Inference_Table.Undisturbed_Train_Loss(run) = total_TrainLoss(end-1);
+    Inference_Table.Disturbed_Train_Loss(run) = total_TrainLoss(end);
+    Inference_Table.Undisturbed_Validation_Acc(run) = total_ValidationAcc(end-1);
+    Inference_Table.Disturbed_Validation_Acc(run) = total_ValidationAcc(end);
+    Inference_Table.Undisturbed_Validation_Loss(run) = total_ValidationLoss(end-1);
+    Inference_Table.Disturbed_Validation_Loss(run) = total_ValidationLoss(end);
+    Inference_Table.NN_Train_Acc_Loss(run) = Inference_Table.Undisturbed_Train_Acc(run) - Inference_Table.Disturbed_Train_Acc(run);
+    Inference_Table.NN_Validation_Acc_Loss(run) = Inference_Table.Undisturbed_Validation_Acc(run) - Inference_Table.Disturbed_Validation_Acc(run);
     
     %% Verbosity
     if trainOptions.Verbose
         disp("|======================================================================================================================|");
+        disp(strcat("Run ", num2str(run), "/", num2str(SessionArgs.nRuns), " completed."));
+        disp(strcat("Undisturbed training accuracy: ", num2str(Inference_Table.Undisturbed_Train_Acc(run)), "%"));
+        disp(strcat("Disturbed training accuracy: ", num2str(Inference_Table.Disturbed_Train_Acc(run)), "%"));
+        disp(strcat("NN training accuracy loss: ", num2str(Inference_Table.NN_Train_Acc_Loss(run)), "%"));
+        disp(strcat("Undisturbed validation accuracy: ", num2str(Inference_Table.Undisturbed_Validation_Acc(run)), "%"));
+        disp(strcat("Disturbed validation accuracy: ", num2str(Inference_Table.Disturbed_Validation_Acc(run)), "%"));
+        disp(strcat("NN validation accuracy loss: ", num2str(Inference_Table.NN_Validation_Acc_Loss(run)), "%"));
+        disp(strcat("Undisturbed training loss: ", num2str(Inference_Table.Undisturbed_Train_Loss(run)), "%"));
+        disp(strcat("Disturbed training loss: ", num2str(Inference_Table.Disturbed_Train_Loss(run)), "%"));
+        disp(strcat("Undisturbed validation loss: ", num2str(Inference_Table.Undisturbed_Validation_Loss(run)), "%"));
+        disp(strcat("Disturbed validation loss: ", num2str(Inference_Table.Disturbed_Validation_Loss(run)), "%"));
+        disp("|======================================================================================================================|");
     end
     
     %% Figure reset
-    if trainOptions.Plots == "training-progress"
+    % Fig1
+    if trainOptions.Plots == "training-progress" && run ~= SessionArgs.nRuns
         close(fig1);
-        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize(trainOptions);
+        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize();
     end
+    % Fig2
+    if flags.WeightHistogramPlot == true && run ~= SessionArgs.nRuns
+        close(fig2);
+        [fig2, nLayers] = fig2_initialize(dlnet);
+    end
+    
 end
 %% Save Results
 trainTable = table(total_TrainAcc, total_TrainLoss, 'VariableNames', {'Accuracy', 'Loss'});
@@ -532,4 +550,28 @@ function [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidati
     xlabel("Iteration");
     ylabel("Loss");
     grid on;
+end
+
+function [fig2, nLayers] = fig2_initialize(dlnet)
+    fig2 = figure;
+    idx = find(dlnet.Learnables.Parameter == "Weights");
+    nLayers = length(idx);
+    for i = 1 : 2*nLayers
+        if i <= nLayers
+            subplot(2, nLayers, i);
+            xlabel('Weight');
+            title(strcat("Layer ", num2str(i), " Weights"));
+        else
+            subplot(2, nLayers, i);
+            xlabel('Gradient');
+            title(strcat("Layer ", num2str(i-nLayers), " Gradients"));
+        end
+        set(gca, 'NextPlot', 'replacechildren');
+    end
+    
+    sgtitle("Epoch: " + "0" + ", Elapsed: " + string(duration(0,0,0)));
+    
+    set(fig2, 'Children', flipud(fig2.Children));
+    
+    clear i;
 end
