@@ -130,12 +130,12 @@ end
 
 %% Training Progress
 if trainOptions.Plots == "training-progress"
-    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize();
+    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
 end
 
 %% Weight Histograms
 if flags.WeightHistogramPlot == true
-    [fig2, nLayers] = fig2_initialize(dlnet);
+    [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
 end
 
 %% Velocity parameter initialization
@@ -346,8 +346,11 @@ for run = 1:SessionArgs.nRuns
 
             %% Display GradCAM
             if flags.GradCAM == true
-                if iteration == 1 || mod(iteration, trainOptions.ValidationFrequency) == 0
-
+                if iteration == 1
+                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, D);
+                elseif mod(iteration, trainOptions.ValidationFrequency) == 0
+                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, D, fig4_struct, k);
+                    %{
                     for l = 1 : length(fig4.Children)-1
                         Display_prediction = dlfeval(@modelPredictions, dlnet, dlXTest(:,:,:,Digit_idx(l)), dlYTest(:,Digit_idx(l)), classes);
                         scoreMap = gradCAM(dlnet, dlXTest(:,:,:,Digit_idx(l)), Display_prediction);
@@ -362,6 +365,7 @@ for run = 1:SessionArgs.nRuns
                     fig4_struct.frame(k) = getframe(fig4);
 
                     k=k+1;
+                    %}
                 end
             end
 
@@ -476,16 +480,23 @@ for run = 1:SessionArgs.nRuns
         disp("|======================================================================================================================|");
     end
     
+    %% Figure Updates
+    
+    %GradCAM
+    if flags.GradCAM == true
+        [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, D, fig4_struct, k);
+    end
+    
     %% Figure reset
     % Fig1
     if trainOptions.Plots == "training-progress" && run ~= SessionArgs.nRuns
         close(fig1);
-        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize();
+        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
     end
     % Fig2
     if flags.WeightHistogramPlot == true && run ~= SessionArgs.nRuns
         close(fig2);
-        [fig2, nLayers] = fig2_initialize(dlnet);
+        [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
     end
     % Fig3 & Fig4 (GradCAM)
     if flags.GradCAM == true && run ~= SessionArgs.nRuns
@@ -536,7 +547,7 @@ end
 end
 
 %% Functions
-
+%{
 function [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = fig1_initialize()  
     fig1 = figure;
     %Acc
@@ -581,3 +592,4 @@ function [fig2, nLayers] = fig2_initialize(dlnet)
     
     clear i;
 end
+%}
