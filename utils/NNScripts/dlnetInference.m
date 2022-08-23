@@ -22,7 +22,7 @@ end
 flags.WeightHistogramPlot = true;
 flags.SaveWeightsGradients = true;
 
-flags.GradCAM = false;
+flags.GradCAM = true;
 
 %% Define Disturbance struct
 if flags.WeightDisturbance == true
@@ -181,8 +181,9 @@ end
 clear dlXTest_temp dlYTest_temp mbqTest;
 
 %% GradCAM Initialization
-GradCAM_Initialization;
-
+if flags.GradCAM == true
+    [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
+end
 %% Variable Initialization
 
 dlnet_0 = dlnet;
@@ -485,6 +486,11 @@ for run = 1:SessionArgs.nRuns
     if flags.WeightHistogramPlot == true && run ~= SessionArgs.nRuns
         close(fig2);
         [fig2, nLayers] = fig2_initialize(dlnet);
+    end
+    % Fig3 & Fig4 (GradCAM)
+    if flags.GradCAM == true && run ~= SessionArgs.nRuns
+        close([fig3, fig4]);
+        [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
     end
     
 end
