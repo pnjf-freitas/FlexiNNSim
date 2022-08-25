@@ -139,12 +139,16 @@ clear f lgraph;
 %for i = 1 : SessionArgs.nRuns
 %% Train Net
 
-    if SessionArgs.Training.bool
-        [trainTable, validationTable, fig1, fig2_struct, fig3, fig4_struct, ME] = dlnetTrain(dlnet, InputDatabase, trainOptions, SessionArgs);
-    else
-        dlnetInference(dlnet, InputDatabase, trainOptions, SessionArgs);
-    end
-    
+close all;
+
+dlnetTrain_Total(dlnet, InputDatabase, trainOptions, SessionArgs);
+%{
+if SessionArgs.Training.bool
+    dlnetTrain(dlnet, InputDatabase, trainOptions, SessionArgs);
+else
+    dlnetInference(dlnet, InputDatabase, trainOptions, SessionArgs);
+end
+%}
     
 %{
     SavePath = fullfile('SavedSessions', SessionArgs.Name, strcat('Run_', num2str(i)));
