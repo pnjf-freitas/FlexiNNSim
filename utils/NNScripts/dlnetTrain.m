@@ -1,4 +1,4 @@
-function [varargout] = dlnetTrain(dlnet, InputDatabase, trainOptions, SessionArgs)
+function [] = dlnetTrain(dlnet, InputDatabase, trainOptions, SessionArgs)
 %UNTITLED2 Summary of this function goes here
 
 %% TEMP
@@ -127,49 +127,12 @@ end
 
 %% Training Progress
 if trainOptions.Plots == "training-progress"
-    fig1 = figure;
-    %Acc
-    subplot(2,1,1);
-    lineAccTrain = animatedline('Color',[0.3010 0.7450 0.9330], 'LineStyle', '-');
-    lineAccValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
-    ylim([0 inf]);
-    xlabel("Iteration");
-    ylabel("Accuracy");
-    grid on;
-    
-    %Loss
-    subplot(2,1,2);
-    lineLossTrain = animatedline('Color',[0.85 0.325 0.098], 'LineStyle', '-');
-    lineLossValidation = animatedline('Color', 'k', 'LineStyle', '--', 'Marker', '.');
-    ylim([0 inf]);
-    xlabel("Iteration");
-    ylabel("Loss");
-    grid on;
+    [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
 end
 
 %% Weight Histograms
 if flags.WeightHistogramPlot == true
-    fig2 = figure;
-    idx = find(dlnet.Learnables.Parameter == "Weights");
-    nLayers = length(idx);
-    for i = 1 : 2*nLayers
-        if i <= nLayers
-            subplot(2, nLayers, i);
-            xlabel('Weight');
-            title(strcat("Layer ", num2str(i), " Weights"));
-        else
-            subplot(2, nLayers, i);
-            xlabel('Gradient');
-            title(strcat("Layer ", num2str(i-nLayers), " Gradients"));
-        end
-        set(gca, 'NextPlot', 'replacechildren');
-    end
-    
-    sgtitle("Epoch: " + "0" + ", Elapsed: " + string(duration(0,0,0)));
-    
-    set(fig2, 'Children', flipud(fig2.Children));
-    
-    clear i;
+    [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
 end
 
 %% Velocity parameter initialization
@@ -215,265 +178,413 @@ end
 clear dlXTest_temp dlYTest_temp mbqTest;
 
 %% GradCAM Initialization
-GradCAM_Initialization;
+if flags.GradCAM == true
+    [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
+end
 
 %% Variable Initialization
+
+dlnet_0 = dlnet;
+
+if strcmp(trainOptions.Shuffle, 'once')
+    shuffle(mbq);
+end
+
+
+for run = 1:SessionArgs.nRuns
     
-iteration = 0;
-start = tic;
-
-total_TrainAcc = [];
-total_TrainLoss = [];
-
-total_ValidationAcc = [];
-total_ValidationLoss = [];
-
-%% Loop over epochs.
-
-j = 1;
-k = 1;
-
-for epoch = 1:trainOptions.MaxEpochs
-    %% Shuffle data.
-    if strcmp(trainOptions.Shuffle, 'every-epoch')
-        shuffle(mbq);
-    end
+    dlnet = dlnet_0;
     
-    %% Loop over mini-batches.
-    while hasdata(mbq)
-        iteration = iteration + 1;
-        
-        %% Read mini-batch of data.
-        [dlX, dlY] = next(mbq);
-        
-        %% If training on a GPU, then convert data to gpuArray.
-        if (trainOptions.ExecutionEnvironment == "auto" && canUseGPU) || trainOptions.ExecutionEnvironment == "gpu"
-            dlX = gpuArray(dlX);
+    iteration = 0;
+    start = tic;
+
+    total_TrainAcc = [];
+    total_TrainLoss = [];
+
+    total_ValidationAcc = [];
+    total_ValidationLoss = [];
+
+    %% Loop over epochs.
+
+    j = 1;
+    k = 1;
+
+    for epoch = 1:trainOptions.MaxEpochs
+        %% Shuffle data.
+        if strcmp(trainOptions.Shuffle, 'every-epoch')
+            shuffle(mbq);
         end
-        
-        %% Weight disturbance
-        if flags.WeightDisturbance == true
-            
-            % This condition exists only because of the gradient-based
-            % programming method for the first iteration
-            if iteration == 1
-                gradients = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
+
+        %% Loop over mini-batches.
+        while hasdata(mbq)
+            iteration = iteration + 1;
+
+            %% Read mini-batch of data.
+            [dlX, dlY] = next(mbq);
+
+            %% If training on a GPU, then convert data to gpuArray.
+            if (trainOptions.ExecutionEnvironment == "auto" && canUseGPU) || trainOptions.ExecutionEnvironment == "gpu"
+                dlX = gpuArray(dlX);
             end
-            
-            idx = dlnet.Learnables.Parameter == "Weights";
-            weights = dlnet.Learnables(idx,:);
-            %clear idx;
-            if trainOptions.ExecutionEnvironment == "parallel"
-                weights = weightDisturbance_parallel(weights, DisturbanceStruct, gradients(idx,:));
-            else               
-                weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :));
-            end
-            %weights = dlupdate(@(weights, DisturbanceStruct) weightDisturbance, weights, DisturbanceStruct);
-            dlnet.Learnables(idx,:) = weights;
-        end   
-        
-        %% Evaluate the model gradients, state, and loss using dlfeval and the
-        % modelGradients function and update the network state.
-        try
-            [gradients,state,lossTrain,accuracyTrain] = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
-        catch ME
-            break;
-        end
-        dlnet.State = state;
-        
-        total_TrainAcc = [total_TrainAcc ; accuracyTrain];
-        total_TrainLoss = [total_TrainLoss ; lossTrain];
-        
-        %% L2Regularization
-        if trainOptions.L2Regularization > 0
-            idx = dlnet.Learnables.Parameter == "Weights";
-            gradients(idx,:) = dlupdate(@(g,w) g + trainOptions.L2Regularization*w, ...
-                gradients(idx,:), ...
-                dlnet.Learnables(idx,:));
-        end
-        
-        %% Gradient Clipping
-        if isinf(trainOptions.GradientThreshold) == false
-            switch trainOptions.GradientThresholdMethod
-                case "global-l2norm"
-                    gradients = thresholdGlobalL2Norm(gradients, gradientThreshold);
-                case "l2norm"
-                    gradients = dlupdate(@(g) thresholdL2Norm(g, gradientThreshold),gradients);
-                case "absolute-value"
-                    gradients = dlupdate(@(g) thresholdAbsoluteValue(g, gradientThreshold),gradients);
-            end
-        end       
-        
-        %% Determine learning rate for time-based decay learning rate schedule.
-        if iteration == 1
-            learnRate = trainOptions.InitialLearnRate;
-        end       
-        if trainOptions.LearnRateSchedule == "piecewise" && (mod(epoch, trainOptions.DropPeriod) == 0)
-            learnRate = learnRate * trainOptions.LearnRateDropFactor;
-        end
-        
-        %% Validation
-        if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
+
+            %% Weight disturbance
+            if flags.WeightDisturbance == true
+
+                % This condition exists only because of the gradient-based
+                % programming method for the first iteration
+                if iteration == 1
+                    gradients = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
+                end
+
+                idx = dlnet.Learnables.Parameter == "Weights";
+                weights = dlnet.Learnables(idx,:);
+                %clear idx;
+                if trainOptions.ExecutionEnvironment == "parallel"
+                    weights = weightDisturbance_parallel(weights, DisturbanceStruct, gradients(idx,:));
+                else               
+                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :));
+                end
+                %weights = dlupdate(@(weights, DisturbanceStruct) weightDisturbance, weights, DisturbanceStruct);
+                dlnet.Learnables(idx,:) = weights;
+            end   
+
+            %% Evaluate the model gradients, state, and loss using dlfeval and the
+            % modelGradients function and update the network state.
             try
-                [~, lossValidation, accuracyValidation] = ...
-                    dlfeval(@modelPredictions, dlnet, dlXTest, dlYTest, classes);
+                [gradients,state,lossTrain,accuracyTrain] = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
             catch ME
                 break;
             end
-            total_ValidationAcc = [total_ValidationAcc ; accuracyValidation];
-            total_ValidationLoss = [total_ValidationLoss ; lossValidation];
-        end        
-        
-        %% Update the network parameters using the SGDM optimizer.
-        [dlnet,velocity] = sgdmupdate(dlnet,gradients,velocity,learnRate,trainOptions.Momentum);
-        
-        %% Display the training progress.
-        if trainOptions.Plots == "training-progress"
-            %Acc
-            %subplot(2,1,1);
-            D = duration(0,0,toc(start),'Format','hh:mm:ss');
-            title(fig1.Children(2), "Epoch: " + epoch + ", Elapsed: " + string(D));
-            addpoints(lineAccTrain,iteration,accuracyTrain);
-            if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
-                addpoints(lineAccValidation,iteration,accuracyValidation);
-            end
-            drawnow;
-            %Loss
-            %subplot(2,1,2);
-            addpoints(lineLossTrain,iteration,lossTrain);
-            if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
-                addpoints(lineLossValidation, iteration, lossValidation);
-            end
-            drawnow;
-        end
-        
-        %% Display gradient histogram
-        if flags.WeightHistogramPlot == true && (mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1)
-            temp_idx = find(idx);
-            for i = 1 : length(fig2.Children) - 1
-                %Weights
-                if i > nLayers
-                    histogram(fig2.Children(i), extractdata(gradients.Value{temp_idx(i-nLayers), :}));
-                    
-                    if flags.SaveWeightsGradients == true
-                        fig2_struct.Data.Gradients{j,i-nLayers} = fig2.Children(i).Children.Data;
-                    end
-                %Gradients
-                else
-                    histogram(fig2.Children(i), extractdata(dlnet.Learnables.Value{temp_idx(i), :}));
-                    
-                    if flags.SaveWeightsGradients == true
-                        fig2_struct.Data.Weights{j,i} = fig2.Children(i).Children.Data;
-                    end
-                end
-            end
-            
-            D = duration(0,0,toc(start),'Format','hh:mm:ss');
-            set(fig2.Children(length(fig2.Children)), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
-            %sgtitle(fig2, "Epoch: " + epoch + ", Elapsed: " + string(D));
-            
-            %Capture plot as an image
-            fig2_struct.frame(j) = getframe(fig2);
-            
-            j=j+1;
-        end
-        
-        %% Display GradCAM
-        if flags.GradCAM == true
-            if iteration == 1 || mod(iteration, trainOptions.ValidationFrequency) == 0
-                
-                for l = 1 : length(fig4.Children)-1
-                    Display_prediction = dlfeval(@modelPredictions, dlnet, dlXTest(:,:,:,Digit_idx(l)), dlYTest(:,Digit_idx(l)), classes);
-                    scoreMap = gradCAM(dlnet, dlXTest(:,:,:,Digit_idx(l)), Display_prediction);
-                    fig4.Children(l+1).Children.CData = scoreMap;
-                    fig4.Children(l+1).Title.String = strcat("Prediction = ", string(Display_prediction));
-                    
-                    fig4_struct.scoreMap{k,l} = scoreMap;                   
-                end
-                
-                set(fig4.Children(1), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
-                
-                fig4_struct.frame(k) = getframe(fig4);
+            dlnet.State = state;
 
-                k=k+1;
+            total_TrainAcc = [total_TrainAcc ; accuracyTrain];
+            total_TrainLoss = [total_TrainLoss ; lossTrain];
+
+            %% L2Regularization
+            if trainOptions.L2Regularization > 0
+                idx = dlnet.Learnables.Parameter == "Weights";
+                gradients(idx,:) = dlupdate(@(g,w) g + trainOptions.L2Regularization*w, ...
+                    gradients(idx,:), ...
+                    dlnet.Learnables(idx,:));
             end
-        end
-        
-        %% Verbosity
-        if trainOptions.Verbose && (iteration == 1 || mod(iteration,trainOptions.VerboseFrequency) == 0)
+
+            %% Gradient Clipping
+            if isinf(trainOptions.GradientThreshold) == false
+                switch trainOptions.GradientThresholdMethod
+                    case "global-l2norm"
+                        gradients = thresholdGlobalL2Norm(gradients, gradientThreshold);
+                    case "l2norm"
+                        gradients = dlupdate(@(g) thresholdL2Norm(g, gradientThreshold),gradients);
+                    case "absolute-value"
+                        gradients = dlupdate(@(g) thresholdAbsoluteValue(g, gradientThreshold),gradients);
+                end
+            end       
+
+            %% Determine learning rate for time-based decay learning rate schedule.
             if iteration == 1
-                disp("|======================================================================================================================|");
-                disp("|  Epoch  |  Iteration  |  Time Elapsed  |  Mini-batch  |  Validation  |  Mini-batch  |  Validation  |  Base Learning  |");
-                disp("|         |             |   (hh:mm:ss)   |   Accuracy   |   Accuracy   |     Loss     |     Loss     |      Rate       |");
-                disp("|======================================================================================================================|");
+                learnRate = trainOptions.InitialLearnRate;
+            end       
+            if trainOptions.LearnRateSchedule == "piecewise" && (mod(epoch, trainOptions.DropPeriod) == 0)
+                learnRate = learnRate * trainOptions.LearnRateDropFactor;
             end
-            D = duration(0,0,toc(start), 'Format', 'hh:mm:ss');
-            
-            if isempty(trainOptions.ValidationData)
-                accuracyValidation = "";
-                lossValidation = "";
+
+            %% Validation
+            if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
+                try
+                    [~, lossValidation, accuracyValidation] = ...
+                        dlfeval(@modelPredictions, dlnet, dlXTest, dlYTest, classes);
+                catch ME
+                    break;
+                end
+                total_ValidationAcc = [total_ValidationAcc ; accuracyValidation];
+                total_ValidationLoss = [total_ValidationLoss ; lossValidation];
+            end        
+
+            %% Update the network parameters using the SGDM optimizer.
+            [dlnet,velocity] = sgdmupdate(dlnet,gradients,velocity,learnRate,trainOptions.Momentum);
+
+            %% Display the training progress.
+            if trainOptions.Plots == "training-progress"
+                TrainProgress_fig_update(fig1, start, trainOptions.ValidationFrequency, false, ...
+                    lineAccTrain, accuracyTrain, lineAccValidation, accuracyValidation, ...
+                    lineLossTrain, lossTrain, lineLossValidation, lossValidation,iteration, epoch);
+                %{
+                %Acc
+                %subplot(2,1,1);
+                D = duration(0,0,toc(start),'Format','hh:mm:ss');
+                title(fig1.Children(2), "Epoch: " + epoch + ", Elapsed: " + string(D));
+                addpoints(lineAccTrain,iteration,accuracyTrain);
+                if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
+                    addpoints(lineAccValidation,iteration,accuracyValidation);
+                end
+                drawnow;
+                %Loss
+                %subplot(2,1,2);
+                addpoints(lineLossTrain,iteration,lossTrain);
+                if mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1
+                    addpoints(lineLossValidation, iteration, lossValidation);
+                end
+                drawnow;
+                %}
             end
-            
-            disp("| " + ...
-                pad(num2str(epoch),7,'left') + " | " + ...
-                pad(num2str(iteration),11,'left') + " | " + ...
-                pad(string(D),14,'left') + " | " + ...
-                pad(num2str(accuracyTrain),12,'left') + " | " + ...
-                pad(num2str(accuracyValidation),12,'left') + " | " + ...
-                pad(num2str(lossTrain),12,'left') + " | " + ...
-                pad(num2str(lossValidation),12,'left') + " | " + ...
-                pad(num2str(learnRate),15,'left') + " |");
+
+            %% Display gradient histogram
+            if flags.WeightHistogramPlot == true && (mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1)
+                if flags.SaveWeightsGradients == true && iteration > 1
+                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                        j, epoch, start, true, fig2_struct);
+                elseif flags.SaveWeightsGradients == true && iteration == 1
+                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                        j, epoch, start, true);
+                else
+                    WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                        j, epoch, start, false);
+                end
+                %{
+                temp_idx = find(idx);
+                for i = 1 : length(fig2.Children) - 1
+                    %Weights
+                    if i > nLayers
+                        histogram(fig2.Children(i), extractdata(gradients.Value{temp_idx(i-nLayers), :}));
+
+                        if flags.SaveWeightsGradients == true
+                            fig2_struct.Data.Gradients{j,i-nLayers} = fig2.Children(i).Children.Data;
+                        end
+                    %Gradients
+                    else
+                        histogram(fig2.Children(i), extractdata(dlnet.Learnables.Value{temp_idx(i), :}));
+
+                        if flags.SaveWeightsGradients == true
+                            fig2_struct.Data.Weights{j,i} = fig2.Children(i).Children.Data;
+                        end
+                    end
+                end
+
+                D = duration(0,0,toc(start),'Format','hh:mm:ss');
+                set(fig2.Children(length(fig2.Children)), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
+                %sgtitle(fig2, "Epoch: " + epoch + ", Elapsed: " + string(D));
+
+                %Capture plot as an image
+                fig2_struct.frame(j) = getframe(fig2);
+
+                j=j+1;
+                %}
+            end
+
+            %% Display GradCAM
+            if flags.GradCAM == true
+                if iteration == 1
+                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start);
+                elseif mod(iteration, trainOptions.ValidationFrequency) == 0
+                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
+                    %{
+                    for l = 1 : length(fig4.Children)-1
+                        Display_prediction = dlfeval(@modelPredictions, dlnet, dlXTest(:,:,:,Digit_idx(l)), dlYTest(:,Digit_idx(l)), classes);
+                        scoreMap = gradCAM(dlnet, dlXTest(:,:,:,Digit_idx(l)), Display_prediction);
+                        fig4.Children(l+1).Children.CData = scoreMap;
+                        fig4.Children(l+1).Title.String = strcat("Prediction = ", string(Display_prediction));
+
+                        fig4_struct.scoreMap{k,l} = scoreMap;                   
+                    end
+
+                    set(fig4.Children(1), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
+
+                    fig4_struct.frame(k) = getframe(fig4);
+
+                    k=k+1;
+                    %}
+                end
+            end
+
+            %% Verbosity
+            if trainOptions.Verbose && (iteration == 1 || mod(iteration,trainOptions.VerboseFrequency) == 0)
+                if iteration == 1
+                    disp("|======================================================================================================================|");
+                    disp("|  Epoch  |  Iteration  |  Time Elapsed  |  Mini-batch  |  Validation  |  Mini-batch  |  Validation  |  Base Learning  |");
+                    disp("|         |             |   (hh:mm:ss)   |   Accuracy   |   Accuracy   |     Loss     |     Loss     |      Rate       |");
+                    disp("|======================================================================================================================|");
+                end
+                D = duration(0,0,toc(start), 'Format', 'hh:mm:ss');
+
+                if isempty(trainOptions.ValidationData)
+                    accuracyValidation = "";
+                    lossValidation = "";
+                end
+
+                disp("| " + ...
+                    pad(num2str(epoch),7,'left') + " | " + ...
+                    pad(num2str(iteration),11,'left') + " | " + ...
+                    pad(string(D),14,'left') + " | " + ...
+                    pad(num2str(accuracyTrain),12,'left') + " | " + ...
+                    pad(num2str(accuracyValidation),12,'left') + " | " + ...
+                    pad(num2str(lossTrain),12,'left') + " | " + ...
+                    pad(num2str(lossValidation),12,'left') + " | " + ...
+                    pad(num2str(learnRate),15,'left') + " |");
+            end
+
+        end
+
+        if exist('ME') ~= 0
+            break;
+        end
+
+        reset(mbq);
+    end
+
+    if trainOptions.Verbose
+        disp("|======================================================================================================================|");
+    end
+
+    %% Save figs and data @ each run
+    
+    SavePath = fullfile('SavedSessions', SessionArgs.Name, strcat('Run_', num2str(run)));
+    
+    if exist(SavePath, 'dir') == 0
+        mkdir(SavePath);
+    end
+    
+    trainTable = table(total_TrainAcc, total_TrainLoss, 'VariableNames', {'Accuracy', 'Loss'});
+    validationTable = table(total_ValidationAcc, total_ValidationLoss);
+    layers = dlnet.Layers;
+    
+    % Save Tables related to the training
+    save(fullfile(SavePath, 'trainTable.mat'), 'trainTable');
+    save(fullfile(SavePath, 'validationTable.mat'), 'validationTable');
+    writetable(trainTable, fullfile(SavePath, 'trainTable.csv'));
+    writetable(validationTable, fullfile(SavePath, 'validationTable.csv'));
+    
+    % Save other details
+    save(fullfile(SavePath, 'trainOptions.mat'), 'trainOptions');
+    save(fullfile(SavePath, 'layers.mat'), 'layers');
+    
+    % Save Training progress figure (fig1)
+    if trainOptions.Plots == "training-progress"
+        savefig(fig1, fullfile(SavePath, 'TrainFig.fig'));
+        exportgraphics(fig1, fullfile(SavePath, 'TrainFig.jpg'));
+    end
+    
+    % Save Weight Histogram figure (fig2)
+    if flags.WeightHistogramPlot == true
+        if isfield(fig2_struct, 'Data') == true
+            save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
         end
         
+        for j = 1 : length(fig2_struct.frame)
+            im = frame2im(fig2_struct.frame(j));
+            [imind, cm] = rgb2ind(im,256);
+            
+            if j == 1
+                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'Loopcount', inf);
+            else
+                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'WriteMode', 'append');
+            end
+            
+            %{
+            if SessionArgs.Training.bool == false && j == length(fig2_struct.frame) - 1
+                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Undisturbed.png'));
+            elseif SessionArgs.Training.bool == false && j == length(fig2_struct.frame)
+                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Disturbed.png'));
+            end
+            %}
+        end
+        
+        save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame');
     end
     
-    if exist('ME') ~= 0
-        break;
+    % Save GradCAM   
+    if flags.GradCAM == true
+        % fig3
+        savefig(fig3, fullfile(SavePath, 'TestImages.fig'));
+        exportgraphics(fig3, fullfile(SavePath, 'TestImages.jpg'));
+        
+        % fig4
+        if isempty(fig4_struct) == false
+            for j = 1 : length(fig4_struct.frame)
+                im = frame2im(fig4_struct.frame(j));
+                [imind, cm] = rgb2ind(im,256);
+
+                if j == 1
+                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'Loopcount', inf);
+                else
+                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'WriteMode', 'append');
+                end
+                
+                %{
+                if SessionArgs.Training.bool == false && j == length(fig4_struct.frame) - 1
+                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Undisturbed.png'));
+                elseif SessionArgs.Training.bool == false && j == length(fig4_struct.frame)
+                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Disturbed.png'));
+                end
+                %}
+            end
+
+            save(fullfile(SavePath, 'fig4_frame.mat'), '-struct', 'fig4_struct', 'frame');
+            save(fullfile(SavePath, 'fig4_scoreMap.mat'), '-struct', 'fig4_struct', 'scoreMap');
+        end
     end
     
-    reset(mbq);
+    clear trainTable validationTable layers im imind cm SavePath;
+    
+    %% Figure reset
+    % Fig1
+    if trainOptions.Plots == "training-progress" && run ~= SessionArgs.nRuns
+        close(fig1);
+        [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
+    end
+    % Fig2
+    if flags.WeightHistogramPlot == true && run ~= SessionArgs.nRuns
+        close(fig2);
+        [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
+    end
+    % Fig3 & Fig4 (GradCAM)
+    if flags.GradCAM == true && run ~= SessionArgs.nRuns
+        close([fig3, fig4]);
+        [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
+    end
+    
 end
 
-if trainOptions.Verbose
-    disp("|======================================================================================================================|");
+%% Figures to plot @ end of all runs
+%{
+% NN accuracy loss per run
+if SessionArgs.nRuns > 1
+    fig5 = figure;
+
+    plot([1 : SessionArgs.nRuns], Inference_Table.NN_Train_Acc_Loss, '-sb');
+    hold on;
+    plot([1 : SessionArgs.nRuns], Inference_Table.NN_Validation_Acc_Loss, '-or');
+    xlabel('NN Training Run');
+    ylabel('NN Accuracy Loss (%)');
+
+    legend('Training Data', 'Validation Data');
+
+    % Boxplot of NN accuracy loss
+    fig6 = figure;
+    boxplot([Inference_Table.NN_Train_Acc_Loss, Inference_Table.NN_Validation_Acc_Loss], ["Training Data", "Validation Data"]);
+    ylabel('NN Accuracy Loss (%)');
+end
+%}
+
+%% Save Results @ end of all runs
+% Define SavePath
+SavePath = fullfile('SavedSessions', SessionArgs.Name, 'All_Run_Summary');
+
+if exist(SavePath, 'dir') == 0
+    mkdir(SavePath);
 end
 
-%% Save Results
-trainTable = table(total_TrainAcc, total_TrainLoss, 'VariableNames', {'Accuracy', 'Loss'});
-validationTable = table(total_ValidationAcc, total_ValidationLoss);
+% Inference Table
+save(fullfile(SavePath, 'Inference_Table.mat'), 'Inference_Table');
+if SessionArgs.nRuns > 1
+    % Save NN accuracy loss per run fig
+    savefig(fig5, fullfile(SavePath, 'Inference_AccLoss_per_run.fig'));
+    exportgraphics(fig5, fullfile(SavePath, 'Inference_AccLoss_per_run.jpg'));
+    %close(fig5);
 
-varargout{1} = trainTable;
-varargout{2} = validationTable;
-
-if exist('fig1', 'var') ~= 0
-    varargout{3} = fig1;
-else
-    varargout{3} = [];
+    % Save NN accuracy loss boxplot
+    savefig(fig6, fullfile(SavePath, 'Inference_AccLoss_Boxplot.fig'));
+    exportgraphics(fig6, fullfile(SavePath, 'Inference_AccLoss_Boxplot.jpg'));
+    %close(fig6);
 end
 
-if exist('fig2_struct', 'var') ~= 0
-    varargout{4} = fig2_struct;
-    close(fig2);
-else
-    varargout{4} = [];
 end
-
-if exist('fig3', 'var') ~= 0
-    varargout{5} = fig3;
-else
-    varargout{5} = [];
-end
-
-if exist('fig4_struct', 'var') ~= 0
-    varargout{6} = fig4_struct;
-    close(fig4);
-else
-    varargout{6} = [];
-end
-
-if exist('ME') ~= 0
-    varargout{7} = ME;
-else
-    varargout{7} = [];
-end
-
