@@ -350,9 +350,12 @@ for run = 1:SessionArgs.nRuns
                 elseif flags.SaveWeightsGradients == true && iteration == 1
                     fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                         j, epoch, start, true);
-                else
-                    WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                        j, epoch, start, false);
+                elseif flags.SaveWeightsGradients == false && iteration > 1
+                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                        j, epoch, start, false, fig2_struct);
+                elseif flags.SaveWeightsGradients == false && iteration == 1
+                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                        j, epoch, start, false);    
                 end
                 %{
                 temp_idx = find(idx);
@@ -531,14 +534,20 @@ for run = 1:SessionArgs.nRuns
         if flags.SaveWeightsGradients == true && iteration > 1
             fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, true, fig2_struct);
-        else
-            WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                j, epoch, start, false);
+        elseif flags.SaveWeightsGradients == true && iteration == 1
+            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                j, epoch, start, true);
+        elseif flags.SaveWeightsGradients == false && iteration > 1
+            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                j, epoch, start, false, fig2_struct);
+        elseif flags.SaveWeightsGradients == false && iteration == 1
+            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                j, epoch, start, false);    
         end
 
         %GradCAM
         if flags.GradCAM == true
-            [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
+            [fig4, fig4_struct, ~] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
         end
         
     else % Training (Not inference)
@@ -619,7 +628,10 @@ for run = 1:SessionArgs.nRuns
             end
         end
         
-        save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame');
+        save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame'); % Save Weight Histograms gif (frame) data
+        if flags.SaveWeightsGradients == true % Save All Weight and Gradient values in a file
+            save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
+        end
     end
     
     % Save GradCAM   
