@@ -19,10 +19,20 @@ else
     flags.WeightDisturbance = false;
 end
 
-flags.WeightHistogramPlot = true;
-flags.SaveWeightsGradients = true;
+flags.WeightHistogramPlot = true; % Plot Histogram of weights at every validation step
+flags.SaveWeightsGradients = true; % Save the Weight and Gradient Matrices at every validation step
 
-flags.GradCAM = true;
+if flags.SaveWeightsGradients == true && flags.WeightHistogramPlot == true
+    flags.WeightHeatmap = true; % Plot Weight Heatmap gifs and figs
+    flags.GradientHeatmap = true; % Plot Gradient Heatmap gifs and figs
+else
+    flags.WeightHeatmap = false;
+    flags.GradientHeatmap = false;
+end
+
+
+
+flags.GradCAM = true; % Plot GradCAM overlay of image samples samples
 
 %% Define Disturbance struct
 if flags.WeightDisturbance == true
@@ -136,6 +146,13 @@ end
 %% Weight Histograms
 if flags.WeightHistogramPlot == true
     [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
+    
+    if flags.WeightHeatmap == true
+        WeightHeatmap_layers = [nLayers];
+    end
+    if flags.GradientHeatmap == true
+        GradientHeatmap_layers = [nLayers];
+    end
 end
 
 %% Velocity parameter initialization
@@ -344,18 +361,24 @@ for run = 1:SessionArgs.nRuns
 
             %% Display gradient histogram
             if flags.WeightHistogramPlot == true && (mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1)
-                if flags.SaveWeightsGradients == true && iteration > 1
-                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                        j, epoch, start, true, fig2_struct);
-                elseif flags.SaveWeightsGradients == true && iteration == 1
-                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                        j, epoch, start, true);
-                elseif flags.SaveWeightsGradients == false && iteration > 1
-                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                        j, epoch, start, false, fig2_struct);
-                elseif flags.SaveWeightsGradients == false && iteration == 1
-                    fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
-                        j, epoch, start, false);    
+                
+                try
+                    if flags.SaveWeightsGradients == true && iteration > 1
+                        [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                            j, epoch, start, true, fig2_struct);
+                    elseif flags.SaveWeightsGradients == true && iteration == 1
+                        [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                            j, epoch, start, true);
+                    elseif flags.SaveWeightsGradients == false && iteration > 1
+                        [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                            j, epoch, start, false, fig2_struct);
+                    elseif flags.SaveWeightsGradients == false && iteration == 1
+                        [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+                            j, epoch, start, false);    
+                    end
+                catch HistPlot_ME
+                    warning(strcat("Error in plotting Weight Histogram: ", HistPlot_ME.message));
+                    warning(strcat("Weight Histogram skipped in iteration ", num2str(iteration)));
                 end
                 %{
                 temp_idx = find(idx);
@@ -390,26 +413,31 @@ for run = 1:SessionArgs.nRuns
 
             %% Display GradCAM
             if flags.GradCAM == true
-                if iteration == 1
-                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start);
-                elseif mod(iteration, trainOptions.ValidationFrequency) == 0
-                    [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
-                    %{
-                    for l = 1 : length(fig4.Children)-1
-                        Display_prediction = dlfeval(@modelPredictions, dlnet, dlXTest(:,:,:,Digit_idx(l)), dlYTest(:,Digit_idx(l)), classes);
-                        scoreMap = gradCAM(dlnet, dlXTest(:,:,:,Digit_idx(l)), Display_prediction);
-                        fig4.Children(l+1).Children.CData = scoreMap;
-                        fig4.Children(l+1).Title.String = strcat("Prediction = ", string(Display_prediction));
+                try
+                    if iteration == 1
+                        [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start);
+                    elseif mod(iteration, trainOptions.ValidationFrequency) == 0
+                        [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
+                        %{
+                        for l = 1 : length(fig4.Children)-1
+                            Display_prediction = dlfeval(@modelPredictions, dlnet, dlXTest(:,:,:,Digit_idx(l)), dlYTest(:,Digit_idx(l)), classes);
+                            scoreMap = gradCAM(dlnet, dlXTest(:,:,:,Digit_idx(l)), Display_prediction);
+                            fig4.Children(l+1).Children.CData = scoreMap;
+                            fig4.Children(l+1).Title.String = strcat("Prediction = ", string(Display_prediction));
 
-                        fig4_struct.scoreMap{k,l} = scoreMap;                   
+                            fig4_struct.scoreMap{k,l} = scoreMap;                   
+                        end
+
+                        set(fig4.Children(1), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
+
+                        fig4_struct.frame(k) = getframe(fig4);
+
+                        k=k+1;
+                        %}
                     end
-
-                    set(fig4.Children(1), 'String', "Epoch: " + epoch + ", Elapsed: " + string(D));
-
-                    fig4_struct.frame(k) = getframe(fig4);
-
-                    k=k+1;
-                    %}
+                catch GradCAM_ME
+                    warning(strcat("Error in GradCAM: ", GradCAM_ME.message));
+                    warning(strcat("GradCAM skipped at iteration ", num2str(iteration)));
                 end
             end
 
@@ -532,16 +560,16 @@ for run = 1:SessionArgs.nRuns
 
         % Weight & Gradient Histograms
         if flags.SaveWeightsGradients == true && iteration > 1
-            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+            [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, true, fig2_struct);
         elseif flags.SaveWeightsGradients == true && iteration == 1
-            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+            [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, true);
         elseif flags.SaveWeightsGradients == false && iteration > 1
-            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+            [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, false, fig2_struct);
         elseif flags.SaveWeightsGradients == false && iteration == 1
-            fig2_struct = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
+            [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, false);    
         end
 
@@ -607,68 +635,98 @@ for run = 1:SessionArgs.nRuns
     
     % Save Weight Histogram figure (fig2)
     if flags.WeightHistogramPlot == true
-        if isfield(fig2_struct, 'Data') == true
-            save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
-        end
-        
-        for j = 1 : length(fig2_struct.frame)
-            im = frame2im(fig2_struct.frame(j));
-            [imind, cm] = rgb2ind(im,256);
-            
-            if j == 1
-                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'Loopcount', inf);
-            else
-                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'WriteMode', 'append');
+        try
+            if isfield(fig2_struct, 'Data') == true
+                save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
             end
-            
-            if SessionArgs.Training.bool == false && j == length(fig2_struct.frame) - 1
-                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Undisturbed.png'));
-            elseif SessionArgs.Training.bool == false && j == length(fig2_struct.frame)
-                imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Disturbed.png'));
+
+            for j = 1 : length(fig2_struct.frame)
+                im = frame2im(fig2_struct.frame(j));
+                [imind, cm] = rgb2ind(im,256);
+
+                if j == 1
+                    imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'Loopcount', inf);
+                else
+                    imwrite(imind, cm, fullfile(SavePath, 'weight_gradient.gif'), 'gif', 'WriteMode', 'append');
+                end
+
+                if SessionArgs.Training.bool == false && j == length(fig2_struct.frame) - 1
+                    imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Undisturbed.png'));
+                elseif SessionArgs.Training.bool == false && j == length(fig2_struct.frame)
+                    imwrite(imind, cm, fullfile(SavePath, 'weight_gradient_Disturbed.png'));
+                end
             end
-        end
-        
-        save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame'); % Save Weight Histograms gif (frame) data
-        if flags.SaveWeightsGradients == true % Save All Weight and Gradient values in a file
-            save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
+
+            save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame'); % Save Weight Histograms gif (frame) data
+            if flags.SaveWeightsGradients == true % Save All Weight and Gradient values in a file
+                save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
+            end
+        catch ME
+            warning("Error in saving weight and gradient histograms");
+            warning("Weight and Gradient Histograms not saved");
         end
     end
     
     % Save GradCAM   
     if flags.GradCAM == true
-        % fig3
-        savefig(fig3, fullfile(SavePath, 'TestImages.fig'));
-        exportgraphics(fig3, fullfile(SavePath, 'TestImages.jpg'));
-        
-        % fig4
-        if isempty(fig4_struct) == false
-            for j = 1 : length(fig4_struct.frame)
-                im = frame2im(fig4_struct.frame(j));
-                [imind, cm] = rgb2ind(im,256);
+        try
+            % fig3
+            savefig(fig3, fullfile(SavePath, 'TestImages.fig'));
+            exportgraphics(fig3, fullfile(SavePath, 'TestImages.jpg'));
 
-                if j == 1
-                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'Loopcount', inf);
-                else
-                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'WriteMode', 'append');
+            % fig4
+            if isempty(fig4_struct) == false
+                for j = 1 : length(fig4_struct.frame)
+                    im = frame2im(fig4_struct.frame(j));
+                    [imind, cm] = rgb2ind(im,256);
+
+                    if j == 1
+                        imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'Loopcount', inf);
+                    else
+                        imwrite(imind, cm, fullfile(SavePath, 'gradCAM.gif'), 'gif', 'WriteMode', 'append');
+                    end
+
+                    if SessionArgs.Training.bool == false && j == length(fig4_struct.frame) - 1
+                        imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Undisturbed.png'));
+                    elseif SessionArgs.Training.bool == false && j == length(fig4_struct.frame)
+                        imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Disturbed.png'));
+                    end
+
                 end
-                
-                if SessionArgs.Training.bool == false && j == length(fig4_struct.frame) - 1
-                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Undisturbed.png'));
-                elseif SessionArgs.Training.bool == false && j == length(fig4_struct.frame)
-                    imwrite(imind, cm, fullfile(SavePath, 'gradCAM_Disturbed.png'));
-                end
-                
+
+                save(fullfile(SavePath, 'fig4_frame.mat'), '-struct', 'fig4_struct', 'frame');
+                save(fullfile(SavePath, 'fig4_scoreMap.mat'), '-struct', 'fig4_struct', 'scoreMap');
             end
-
-            save(fullfile(SavePath, 'fig4_frame.mat'), '-struct', 'fig4_struct', 'frame');
-            save(fullfile(SavePath, 'fig4_scoreMap.mat'), '-struct', 'fig4_struct', 'scoreMap');
+        catch ME
+            warning("Error in saving GradCAM");
+            warning("GradCAM not saved");
         end
     end
     
+    % Weight & Gradient Heatmap gifs and figs (Training only)
+    if flags.SaveWeightsGradients == true && SessionArgs.Training.bool == true
+        if flags.WeightHeatmap == true
+            try
+                dlnet_Weight_heatmap_GIF_Maker(fig2_struct.Data, WeightHeatmap_layers, SavePath);
+            catch Weight_Heatmap_ME
+                warning(strcat("Error in Weight_heatmap_GIF_Maker: ", Weight_Heatmap_ME.message));
+                warning("Session will continue without Weight Heatmap figs for this run");
+            end
+        end
+        if flags.GradientHeatmap == true
+            try
+                dlnet_Gradient_heatmap_GIF_Maker(fig2_struct.Data, GradientHeatmap_layers, SavePath);
+            catch Gradient_Heatmap_ME
+                warning(strcat("Error in Gradient_heatmap_GIF_Maker: ", Gradient_Heatmap_ME.message));
+                warning("Session will continue without Gradient Heatmap figs for this run");
+            end
+        end
+    end
+    
+    
     clear trainTable validationTable layers im imind cm SavePath;
     
-    %% Figure reset
-    
+    %% Figure reset  
     if run ~= SessionArgs.nRuns
         % Fig1
         if trainOptions.Plots == "training-progress"
