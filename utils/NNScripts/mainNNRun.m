@@ -131,7 +131,12 @@ if isempty(layers(1,1).Mean)
 end
 
 lgraph = layerGraph(layers);
-dlnet = dlnetwork(lgraph);
+dlnet = dlnetwork(lgraph, 'Initialize', true);
+
+% (Commented) Alternative initialization method to take into account fixed
+% weight range
+%dlnet = dlnetwork(lgraph, 'Initialize', false);
+%dlnet = initialize(dlnet);
 
 clear f lgraph;
 

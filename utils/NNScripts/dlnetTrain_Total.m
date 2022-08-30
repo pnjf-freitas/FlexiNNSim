@@ -30,9 +30,10 @@ else
     flags.GradientHeatmap = false;
 end
 
-
-
 flags.GradCAM = true; % Plot GradCAM overlay of image samples samples
+
+flags.FixedWeightLimits = true; % Use limit caps on weight values
+
 
 %% Define Disturbance struct
 if flags.WeightDisturbance == true
@@ -205,6 +206,22 @@ end
 
 dlnet_0 = dlnet;
 
+idx = dlnet.Learnables.Parameter == "Weights";
+
+if flags.FixedWeightLimits == true
+    MaxWeightLimits = [0.2]; % Column Array containing one entry per weight layer (xbar matrix)
+    
+    if size(MaxWeightLimits, 1) == 1
+        warning('Size of array containing capping limits for xbar layers is 1. All xbar arrays will share the same capping limits');
+        MaxWeightLimits = repmat(MaxWeightLimits, [size(dlnet.Learnables(idx,:), 1),1]);
+    elseif size(MaxWeightLimits, 1) ~= size(dlnet.Learnables(idx,:),1) && size(MaxWeightLimits, 1) > 1
+        warning('Size of array containing capping limits for xbar layers mismatch with xbar layer number. Switching to Dynamic weight rescaling');
+        flags.FixedWeightLimits = false;
+        clear MaxWeightLimits;
+    end
+    
+end
+
 if strcmp(trainOptions.Shuffle, 'once')
     shuffle(mbq);
 end
@@ -259,6 +276,18 @@ for run = 1:SessionArgs.nRuns
             end
             
             %% Weight disturbance @ each iteration (Training only)
+            
+            % Limit the weights according to fixed weight limit range (positive and negative)
+            % Lower end of capping for the xbar matrix is always 0
+            if flags.FixedWeightLimits == true
+                for i = 1:size(dlnet.Learnables(idx,:), 1)
+                    % Limit positive weights
+                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > MaxWeightLimits(i)) = MaxWeightLimits(i);
+                    % Limit negative weights
+                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -MaxWeightLimits(i)) = -MaxWeightLimits(i);
+                end
+            end
+            
             if flags.WeightDisturbance == true && SessionArgs.Training.bool == true
 
                 % This condition exists only because of the gradient-based
@@ -267,16 +296,39 @@ for run = 1:SessionArgs.nRuns
                     gradients = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
                 end
 
-                idx = dlnet.Learnables.Parameter == "Weights";
+                %idx = dlnet.Learnables.Parameter == "Weights";
                 weights = dlnet.Learnables(idx,:);
                 %clear idx;
+                %{
                 if trainOptions.ExecutionEnvironment == "parallel"
                     weights = weightDisturbance_parallel(weights, DisturbanceStruct, gradients(idx,:));
                 else               
                     weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :));
                 end
+                %}
+                if trainOptions.ExecutionEnvironment == "parallel"
+                    warning("Execution of weight disturbance in parallel pool not implemented yet. Running on single thread");
+                end
+                
+                if flags.FixedWeightLimits == true
+                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), flags.FixedWeightLimits, MaxWeightLimits);
+                else
+                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), flags.FixedWeightLimits);
+                end
+                
                 %weights = dlupdate(@(weights, DisturbanceStruct) weightDisturbance, weights, DisturbanceStruct);
                 dlnet.Learnables(idx,:) = weights;
+                
+                % Cap the weights again after disturbance
+                if flags.FixedWeightLimits == true
+                    for i = 1:size(dlnet.Learnables(idx,:), 1)
+                        % Limit positive weights
+                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > MaxWeightLimits(i)) = MaxWeightLimits(i);
+                        % Limit negative weights
+                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -MaxWeightLimits(i)) = -MaxWeightLimits(i);
+                    end
+                end
+                
             end  
 
             %% Evaluate the model gradients, state, and loss using dlfeval and the
@@ -293,7 +345,7 @@ for run = 1:SessionArgs.nRuns
 
             %% L2Regularization
             if trainOptions.L2Regularization > 0
-                idx = dlnet.Learnables.Parameter == "Weights";
+                %idx = dlnet.Learnables.Parameter == "Weights";
                 gradients(idx,:) = dlupdate(@(g,w) g + trainOptions.L2Regularization*w, ...
                     gradients(idx,:), ...
                     dlnet.Learnables(idx,:));
@@ -487,7 +539,7 @@ for run = 1:SessionArgs.nRuns
             gradients = dlfeval(@modelGradients,dlnet,dlX,dlY, classes);
         end
         %}
-        idx = dlnet.Learnables.Parameter == "Weights";
+        %idx = dlnet.Learnables.Parameter == "Weights";
         weights = dlnet.Learnables(idx,:);
         %clear idx;
         if trainOptions.ExecutionEnvironment == "parallel"
