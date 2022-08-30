@@ -1,7 +1,15 @@
-function [weights] = weightDisturbance(weights, DisturbanceStruct, gradients)
+function [weights] = weightDisturbance(weights, DisturbanceStruct, gradients, FixedWeightRange_bool, varargin)
 %UNTITLED4 Summary of this function goes here
 %   For now, this functions only apply to the weights. No Bias disturbance.
 
+if FixedWeightRange_bool == true
+    if isempty(varargin)
+        warning("Fixed weight range selected but weight limits not provided to weightDisturbance function. Switching to Dynamic weight rescaling");
+        FixedWeightRange_bool = false;
+    else
+        FixedWeightLimits = varargin{1};
+    end
+end
 
 %% Discretization Loop
 %Loop through the layers of dlnet
@@ -26,13 +34,18 @@ for i = 1 : size(weights, 1)
     minRange_pos = min(layerWeights_pos, [], 'all');
     maxRange_neg = max(layerWeights_neg, [], 'all');
     minRange_neg = min(layerWeights_neg, [], 'all');
-    %Rescale to [-1,0] for neg and [0,1] for pos
-    layerWeights_pos = rescale(layerWeights_pos, 0, 1);
-    layerWeights_neg = rescale(layerWeights_neg, -1, 0);
+    
+    if FixedWeightRange_bool == true
+        layerWeights_pos = rescale(layerWeights_pos, 0, maxRange_pos/FixedWeightLimits(i));
+        layerWeights_neg = rescale(layerWeights_neg, minRange_neg/FixedWeightLimits(i), 0);
+    else
+        %Rescale to [-1,0] for neg and [0,1] for pos
+        layerWeights_pos = rescale(layerWeights_pos, 0, 1);
+        layerWeights_neg = rescale(layerWeights_neg, -1, 0);
+    end
     % try Rescaling from [-1, min(layerWeights_neg)] and [min(layerWeights_pos), 1]
     %layerWeights_pos = rescale(layerWeights_pos, minRange_pos, 1);
     %layerWeights_neg = rescale(layerWeights_neg, -1, maxRange_neg);
-    
     %% flip negative matrix to positive values
     layerWeights_neg = -layerWeights_neg;
     
