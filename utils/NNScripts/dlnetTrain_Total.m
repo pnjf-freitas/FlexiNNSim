@@ -14,29 +14,29 @@ end
 
 %% Define flags
 if SessionArgs.Discretize.bool || SessionArgs.D2D.bool || SessionArgs.C2C.bool
-    flags.WeightDisturbance = true;
+    SessionArgs.WeightDisturbance = true;
 else
-    flags.WeightDisturbance = false;
+    SessionArgs.WeightDisturbance = false;
 end
 
-flags.WeightHistogramPlot = true; % Plot Histogram of weights at every validation step
-flags.SaveWeightsGradients = true; % Save the Weight and Gradient Matrices at every validation step
-
-if flags.SaveWeightsGradients == true && flags.WeightHistogramPlot == true
-    flags.WeightHeatmap = true; % Plot Weight Heatmap gifs and figs
-    flags.GradientHeatmap = true; % Plot Gradient Heatmap gifs and figs
+%SessionArgs.Plot.WeightHistogram_bool = true; % Plot Histogram of weights at every validation step
+%SessionArgs.SaveWeightGradientData_bool = true; % Save the Weight and Gradient Matrices at every validation step
+%{
+if SessionArgs.SaveWeightGradientData_bool == true && SessionArgs.Plot.WeightHistogram_bool == true
+    SessionArgs.Plot.WeightHeatmap_bool = true; % Plot Weight Heatmap gifs and figs
+    SessionArgs.Plot.GradientHeatmap_bool = true; % Plot Gradient Heatmap gifs and figs
 else
-    flags.WeightHeatmap = false;
-    flags.GradientHeatmap = false;
+    SessionArgs.Plot.WeightHeatmap_bool = false;
+    SessionArgs.Plot.GradientHeatmap_bool = false;
 end
+%}
+%SessionArgs.Plot.GradCAM_bool = true; % Plot GradCAM overlay of image samples samples
 
-flags.GradCAM = true; % Plot GradCAM overlay of image samples samples
-
-flags.FixedWeightLimits = true; % Use limit caps on weight values
+%SessionArgs.WeightRange.FixedRange_bool = true; % Use limit caps on weight values
 
 
 %% Define Disturbance struct
-if flags.WeightDisturbance == true
+if SessionArgs.WeightDisturbance == true
     DisturbanceStruct.ProgrammingMethod = SessionArgs.ProgrammingMethod;
     
     DisturbanceStruct.ExecutionEnvironment = trainOptions.ExecutionEnvironment;
@@ -140,18 +140,19 @@ else
 end
 
 %% Training Progress
-if trainOptions.Plots == "training-progress"
+%if trainOptions.Plots == "training-progress"
+if SessionArgs.Plot.TrainProgress_bool == true
     [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
 end
 
 %% Weight Histograms
-if flags.WeightHistogramPlot == true
+if SessionArgs.Plot.WeightHistogram_bool == true
     [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
     
-    if flags.WeightHeatmap == true
+    if SessionArgs.Plot.WeightHeatmap_bool == true
         WeightHeatmap_layers = [nLayers];
     end
-    if flags.GradientHeatmap == true
+    if SessionArgs.Plot.GradientHeatmap_bool == true
         GradientHeatmap_layers = [nLayers];
     end
 end
@@ -199,7 +200,7 @@ end
 clear dlXTest_temp dlYTest_temp mbqTest;
 
 %% GradCAM Initialization
-if flags.GradCAM == true
+if SessionArgs.Plot.GradCAM_bool == true
     [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
 end
 %% Variable Initialization
@@ -208,16 +209,16 @@ dlnet_0 = dlnet;
 
 idx = dlnet.Learnables.Parameter == "Weights";
 
-if flags.FixedWeightLimits == true
-    MaxWeightLimits = [0.2]; % Column Array containing one entry per weight layer (xbar matrix)
+if SessionArgs.WeightRange.FixedRange_bool == true
+%    SessionArgs.WeightRange.Limits = [0.2]; % Column Array containing one entry per weight layer (xbar matrix)
     
-    if size(MaxWeightLimits, 1) == 1
+    if size(SessionArgs.WeightRange.Limits, 1) == 1
         warning('Size of array containing capping limits for xbar layers is 1. All xbar arrays will share the same capping limits');
-        MaxWeightLimits = repmat(MaxWeightLimits, [size(dlnet.Learnables(idx,:), 1),1]);
-    elseif size(MaxWeightLimits, 1) ~= size(dlnet.Learnables(idx,:),1) && size(MaxWeightLimits, 1) > 1
+        SessionArgs.WeightRange.Limits = repmat(SessionArgs.WeightRange.Limits, [size(dlnet.Learnables(idx,:), 1),1]);
+    elseif size(SessionArgs.WeightRange.Limits, 1) ~= size(dlnet.Learnables(idx,:),1) && size(SessionArgs.WeightRange.Limits, 1) > 1
         warning('Size of array containing capping limits for xbar layers mismatch with xbar layer number. Switching to Dynamic weight rescaling');
-        flags.FixedWeightLimits = false;
-        clear MaxWeightLimits;
+        SessionArgs.WeightRange.FixedRange_bool = false;
+        clear SessionArgs.WeightRange.Limits;
     end
     
 end
@@ -279,16 +280,16 @@ for run = 1:SessionArgs.nRuns
             
             % Limit the weights according to fixed weight limit range (positive and negative)
             % Lower end of capping for the xbar matrix is always 0
-            if flags.FixedWeightLimits == true
+            if SessionArgs.WeightRange.FixedRange_bool == true
                 for i = 1:size(dlnet.Learnables(idx,:), 1)
                     % Limit positive weights
-                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > MaxWeightLimits(i)) = MaxWeightLimits(i);
+                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > SessionArgs.WeightRange.Limits(i)) = SessionArgs.WeightRange.Limits(i);
                     % Limit negative weights
-                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -MaxWeightLimits(i)) = -MaxWeightLimits(i);
+                    dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -SessionArgs.WeightRange.Limits(i)) = -SessionArgs.WeightRange.Limits(i);
                 end
             end
             
-            if flags.WeightDisturbance == true && SessionArgs.Training.bool == true
+            if SessionArgs.WeightDisturbance == true && SessionArgs.Training.bool == true
 
                 % This condition exists only because of the gradient-based
                 % programming method for the first iteration
@@ -310,22 +311,22 @@ for run = 1:SessionArgs.nRuns
                     warning("Execution of weight disturbance in parallel pool not implemented yet. Running on single thread");
                 end
                 
-                if flags.FixedWeightLimits == true
-                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), flags.FixedWeightLimits, MaxWeightLimits);
+                if SessionArgs.WeightRange.FixedRange_bool == true
+                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), SessionArgs.WeightRange.FixedRange_bool, SessionArgs.WeightRange.Limits);
                 else
-                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), flags.FixedWeightLimits);
+                    weights = weightDisturbance(weights, DisturbanceStruct, gradients(idx, :), SessionArgs.WeightRange.FixedRange_bool);
                 end
                 
                 %weights = dlupdate(@(weights, DisturbanceStruct) weightDisturbance, weights, DisturbanceStruct);
                 dlnet.Learnables(idx,:) = weights;
                 
                 % Cap the weights again after disturbance
-                if flags.FixedWeightLimits == true
+                if SessionArgs.WeightRange.FixedRange_bool == true
                     for i = 1:size(dlnet.Learnables(idx,:), 1)
                         % Limit positive weights
-                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > MaxWeightLimits(i)) = MaxWeightLimits(i);
+                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} > SessionArgs.WeightRange.Limits(i)) = SessionArgs.WeightRange.Limits(i);
                         % Limit negative weights
-                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -MaxWeightLimits(i)) = -MaxWeightLimits(i);
+                        dlnet.Learnables(idx,:).Value{i}(dlnet.Learnables(idx,:).Value{i} < -SessionArgs.WeightRange.Limits(i)) = -SessionArgs.WeightRange.Limits(i);
                     end
                 end
                 
@@ -412,19 +413,19 @@ for run = 1:SessionArgs.nRuns
             end
 
             %% Display gradient histogram
-            if flags.WeightHistogramPlot == true && (mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1)
+            if SessionArgs.Plot.WeightHistogram_bool == true && (mod(iteration, trainOptions.ValidationFrequency) == 0 || iteration == 1)
                 
                 try
-                    if flags.SaveWeightsGradients == true && iteration > 1
+                    if SessionArgs.SaveWeightGradientData_bool == true && iteration > 1
                         [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                             j, epoch, start, true, fig2_struct);
-                    elseif flags.SaveWeightsGradients == true && iteration == 1
+                    elseif SessionArgs.SaveWeightGradientData_bool == true && iteration == 1
                         [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                             j, epoch, start, true);
-                    elseif flags.SaveWeightsGradients == false && iteration > 1
+                    elseif SessionArgs.SaveWeightGradientData_bool == false && iteration > 1
                         [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                             j, epoch, start, false, fig2_struct);
-                    elseif flags.SaveWeightsGradients == false && iteration == 1
+                    elseif SessionArgs.SaveWeightGradientData_bool == false && iteration == 1
                         [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                             j, epoch, start, false);    
                     end
@@ -439,14 +440,14 @@ for run = 1:SessionArgs.nRuns
                     if i > nLayers
                         histogram(fig2.Children(i), extractdata(gradients.Value{temp_idx(i-nLayers), :}));
 
-                        if flags.SaveWeightsGradients == true
+                        if SessionArgs.SaveWeightGradientData_bool == true
                             fig2_struct.Data.Gradients{j,i-nLayers} = fig2.Children(i).Children.Data;
                         end
                     %Gradients
                     else
                         histogram(fig2.Children(i), extractdata(dlnet.Learnables.Value{temp_idx(i), :}));
 
-                        if flags.SaveWeightsGradients == true
+                        if SessionArgs.SaveWeightGradientData_bool == true
                             fig2_struct.Data.Weights{j,i} = fig2.Children(i).Children.Data;
                         end
                     end
@@ -464,7 +465,7 @@ for run = 1:SessionArgs.nRuns
             end
 
             %% Display GradCAM
-            if flags.GradCAM == true
+            if SessionArgs.Plot.GradCAM_bool == true
                 try
                     if iteration == 1
                         [fig4, fig4_struct, k] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start);
@@ -530,7 +531,7 @@ for run = 1:SessionArgs.nRuns
 
     %% Weight disturbance after training is complete (Inference only)
 
-    if flags.WeightDisturbance == true && SessionArgs.Training.bool == false
+    if SessionArgs.WeightDisturbance == true && SessionArgs.Training.bool == false
 
         % This condition exists only because of the gradient-based
         % programming method for the first iteration
@@ -611,22 +612,22 @@ for run = 1:SessionArgs.nRuns
         end
 
         % Weight & Gradient Histograms
-        if flags.SaveWeightsGradients == true && iteration > 1
+        if SessionArgs.SaveWeightGradientData_bool == true && iteration > 1
             [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, true, fig2_struct);
-        elseif flags.SaveWeightsGradients == true && iteration == 1
+        elseif SessionArgs.SaveWeightGradientData_bool == true && iteration == 1
             [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, true);
-        elseif flags.SaveWeightsGradients == false && iteration > 1
+        elseif SessionArgs.SaveWeightGradientData_bool == false && iteration > 1
             [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, false, fig2_struct);
-        elseif flags.SaveWeightsGradients == false && iteration == 1
+        elseif SessionArgs.SaveWeightGradientData_bool == false && iteration == 1
             [fig2_struct, j] = WeightHistogram_fig_update(fig2, idx, nLayers, dlnet.Learnables, gradients, ...
                 j, epoch, start, false);    
         end
 
         %GradCAM
-        if flags.GradCAM == true
+        if SessionArgs.Plot.GradCAM_bool == true
             [fig4, fig4_struct, ~] = GradCAM_Update(dlnet, dlXTest, dlYTest, Digit_idx, classes, fig4, epoch, start, fig4_struct, k);
         end
         
@@ -686,7 +687,7 @@ for run = 1:SessionArgs.nRuns
     end
     
     % Save Weight Histogram figure (fig2)
-    if flags.WeightHistogramPlot == true
+    if SessionArgs.Plot.WeightHistogram_bool == true
         try
             if isfield(fig2_struct, 'Data') == true
                 save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
@@ -710,7 +711,7 @@ for run = 1:SessionArgs.nRuns
             end
 
             save(fullfile(SavePath, 'fig2_frame.mat'), '-struct', 'fig2_struct', 'frame'); % Save Weight Histograms gif (frame) data
-            if flags.SaveWeightsGradients == true % Save All Weight and Gradient values in a file
+            if SessionArgs.SaveWeightGradientData_bool == true % Save All Weight and Gradient values in a file
                 save(fullfile(SavePath, 'Weight_Gradient_Data.mat'), '-struct', 'fig2_struct', 'Data');
             end
         catch ME
@@ -720,7 +721,7 @@ for run = 1:SessionArgs.nRuns
     end
     
     % Save GradCAM   
-    if flags.GradCAM == true
+    if SessionArgs.Plot.GradCAM_bool == true
         try
             % fig3
             savefig(fig3, fullfile(SavePath, 'TestImages.fig'));
@@ -756,8 +757,8 @@ for run = 1:SessionArgs.nRuns
     end
     
     % Weight & Gradient Heatmap gifs and figs (Training only)
-    if flags.SaveWeightsGradients == true && SessionArgs.Training.bool == true
-        if flags.WeightHeatmap == true
+    if SessionArgs.SaveWeightGradientData_bool == true && SessionArgs.Training.bool == true
+        if SessionArgs.Plot.WeightHeatmap_bool == true
             try
                 dlnet_Weight_heatmap_GIF_Maker(fig2_struct.Data, WeightHeatmap_layers, SavePath);
             catch Weight_Heatmap_ME
@@ -765,7 +766,7 @@ for run = 1:SessionArgs.nRuns
                 warning("Session will continue without Weight Heatmap figs for this run");
             end
         end
-        if flags.GradientHeatmap == true
+        if SessionArgs.Plot.GradientHeatmap_bool == true
             try
                 dlnet_Gradient_heatmap_GIF_Maker(fig2_struct.Data, GradientHeatmap_layers, SavePath);
             catch Gradient_Heatmap_ME
@@ -786,12 +787,12 @@ for run = 1:SessionArgs.nRuns
             [fig1, lineAccTrain, lineAccValidation, lineLossTrain, lineLossValidation] = TrainProgress_fig_initialize();
         end
         % Fig2
-        if flags.WeightHistogramPlot == true
+        if SessionArgs.Plot.WeightHistogram_bool == true
             close(fig2);
             [fig2, nLayers] = WeightHistogram_fig_initialize(dlnet);
         end
         % Fig3 & Fig4 (GradCAM)
-        if flags.GradCAM == true
+        if SessionArgs.Plot.GradCAM_bool == true
             close([fig3, fig4]);
             [fig3, fig4, Digit_idx] = GradCAM_Initialization(dlXTest, dlYTest, classes);
         end

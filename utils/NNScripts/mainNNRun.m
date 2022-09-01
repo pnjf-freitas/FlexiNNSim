@@ -68,6 +68,44 @@ SessionArgs.NNLayers.str = SessionEntry{13};
 %NN_Options
 SessionArgs.NNOptions.str = SessionEntry{14};
 
+% Plots
+% Plot Training Progress
+SessionArgs.Plot.TrainProgress_bool = SessionEntry{15};
+
+% Plot Weight & Gradient Histograms
+SessionArgs.Plot.WeightHistogram_bool = SessionEntry{16};
+
+% Plot GradCAM
+SessionArgs.Plot.GradCAM_bool = SessionEntry{17};
+
+% Plot Weight Heatmaps
+SessionArgs.Plot.WeightHeatmap_bool = SessionEntry{18};
+
+% Plot Gradient Heatmaps
+SessionArgs.Plot.GradientHeatmap_bool = SessionEntry{19};
+
+% Plot All run summary
+SessionArgs.Plot.AllRunSummary_ = SessionEntry{20};
+
+% Save Weight & Gradient data
+SessionArgs.SaveWeightGradientData_bool = SessionEntry{21};
+
+SessionArgs.WeightRange.Method = SessionEntry{22};
+
+if strcmp(SessionArgs.WeightRange.Method, "Fixed Range") == true
+    SessionArgs.WeightRange.FixedRange_bool = true;
+    SessionArgs.WeightRange.Limits = str2num(SessionEntry{23})';
+else
+    SessionArgs.WeightRange.FixedRange_bool = false;
+end
+
+if (SessionArgs.SaveWeightGradientData_bool == false || SessionArgs.Plot.WeightHistogram_bool == false) ...
+        && (SessionArgs.Plot.WeightHeatmap_bool || SessionArgs.Plot.GradientHeatmap_bool) == true  
+    SessionArgs.Plot.WeightHeatmap_bool = false;
+    SessionArgs.Plot.GradientHeatmap_bool = false;
+    warning("Unable to plot Weight & Gradient Heatmaps. Check if Weight Histograms are plotted or if Weight & Gradient Data is saved. Skipping Weight and Gradient Heatmap plotting");
+end
+
 clear SessionEntry;
 
 %% Load Input Datastore
