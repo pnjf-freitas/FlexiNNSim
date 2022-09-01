@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="4121573676" file="C:\Users\Pedro\OneDrive - Liverpool John Moores University\MATLAB\PedroSim\PedroSim_M2021a.prj" location="C:\Users\Pedro\OneDrive - Liverpool John Moores University\MATLAB\PedroSim" name="PedroSim_M2021a" target="target.mlapps" target-name="Package App">
+  <configuration build-checksum="4121573676" file="C:\Users\Pedro\Documents\MATLAB\PedroSim\PedroSim_M2021a.prj" location="C:\Users\Pedro\Documents\MATLAB\PedroSim" name="PedroSim_M2021a" target="target.mlapps" target-name="Package App">
     <param.appname>PedroSim_M2021a</param.appname>
     <param.authnamewatermark>Pedro Freitas</param.authnamewatermark>
     <param.email>P.N.Freitas@2017.ljmu.ac.uk</param.email>
@@ -8,7 +8,7 @@
     <param.icons />
     <param.summary>Simulation Framework for testing RRAM non-idealities on standard NN training and inference algorithms</param.summary>
     <param.description />
-    <param.screenshot>C:\Users\Pedro\AppData\Local\Temp\tp4d0ed115_44e9_4f0f_8f2c_e5a2629ad6d1.png</param.screenshot>
+    <param.screenshot />
     <param.version>0.9</param.version>
     <param.products.name>
       <item>MATLAB</item>
@@ -35,12 +35,13 @@
       <item>12.1</item>
     </param.products.version>
     <param.platforms />
-    <param.output>C:\Users\Pedro\Documents\PedroSim_Pkg_M2021a</param.output>
+    <param.output>C:\Users\Pedro\Documents</param.output>
     <param.guid>39e39133-12c9-4f0c-ba36-2df77714d1ed</param.guid>
     <unset>
       <param.icon />
       <param.icons />
       <param.description />
+      <param.screenshot />
       <param.platforms />
     </unset>
     <fileset.main>
@@ -54,7 +55,7 @@
     </fileset.resources>
     <fileset.package />
     <build-deliverables>
-      <file location="C:\Users\Pedro\Documents" name="PedroSim_Pkg_M2021a" optional="false">C:\Users\Pedro\Documents\PedroSim_Pkg_M2021a</file>
+      <file location="C:\Users\Pedro" name="Documents" optional="false">C:\Users\Pedro\Documents</file>
     </build-deliverables>
     <workflow />
     <matlab>
