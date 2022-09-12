@@ -16,6 +16,10 @@ G_LTD = fittype('((G_LRS^alpha_d - G_HRS^alpha_d) * w + G_HRS^alpha_d)^(1/alpha_
 %G_LTP = fittype('G_HRS * (G_LRS/G_HRS)^w', 'dependent', 'G_LTP', 'independent', 'w');
 %G_LTD = fittype('G_HRS * (G_LRS/G_HRS)^w', 'dependent', 'G_LTD', 'independent', 'w');
 
+%syms w G_LRS G_HRS alpha_p alpha_d;
+
+%G_LTP = piecewise(w==0, G_HRS * (G_LRS/G_HRS)^w, w~=0, ((G_LRS^alpha_p - G_HRS^alpha_p) * w + G_HRS^alpha_p)^(1/alpha_p));
+%G_LTD = piecewise(w==0, G_HRS * (G_LRS/G_HRS)^w, w~=0, ((G_LRS^alpha_d - G_HRS^alpha_d) * w + G_HRS^alpha_d)^(1/alpha_d));
 
 %% Define coeff names
 LTP_Coeffnames = coeffnames(G_LTP);
@@ -27,6 +31,20 @@ if isequal(LTP_Coeffnames, LTD_Coeffnames)
     LTD_Coeffvalues = LTP_Coeffvalues;
 else
     LTD_Coeffvalues = inputdlg(LTD_Coeffnames, 'LTD coefficient values');
+end
+
+%% If alpha == 0
+%alpha_p
+if str2double(LTP_Coeffvalues{end}) == 0
+    G_LTP = fittype('G_HRS * (G_LRS/G_HRS)^w', 'dependent', 'G_LTP', 'independent', 'w');
+    LTP_Coeffnames = LTP_Coeffnames(1:end-1);
+    LTP_Coeffvalues = LTP_Coeffvalues(1:end-1);
+end
+
+if str2double(LTD_Coeffvalues{end}) == 0
+    G_LTD = fittype('G_HRS * (G_LRS/G_HRS)^w', 'dependent', 'G_LTD', 'independent', 'w');
+    LTD_Coeffnames = LTD_Coeffnames(1:end-1);
+    LTD_Coeffvalues = LTD_Coeffvalues(1:end-1);
 end
 
 %% Define symbolic functions
@@ -108,9 +126,18 @@ nCycles = str2double(cell2mat(inputdlg('# of Cycles', '# of Cycles')));
 
 %% Apply variability for # of cycles
 
+% NormG
 var_y_LTP = y_LTP .* random(pd, size(y_LTP,1), nCycles);
 var_y_LTD = y_LTD .* random(pd, size(y_LTD,1), nCycles);
 
+% DeltaG/G
+%{
+DeltaG_LTP = (y_LTP .* random(pd, size(y_LTP,1), nCycles) - y_LTP) ./ y_LTP;
+var_y_LTP = y_LTP + (y_LTP .* DeltaG_LTP);
+
+DeltaG_LTD = (y_LTD .* random(pd, size(y_LTP,1), nCycles) - y_LTD) ./ y_LTD;
+var_y_LTD = y_LTD + (y_LTD .* DeltaG_LTD);
+%}
 %% Plot variable cycles
 fig4 = figure;
 for i = 1:nCycles
@@ -165,3 +192,8 @@ fig6 = figure;
 plot(Data.Pulse, Data.absI, '--.r');
 xlabel('Pulse #');
 ylabel('G (S)');
+
+%% Save Data table for PedroSim
+[file, path, indx] = uiputfile;
+
+save(fullfile(path, file), 'Data');
