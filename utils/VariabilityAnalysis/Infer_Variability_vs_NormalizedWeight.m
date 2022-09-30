@@ -60,20 +60,6 @@ symG_LTP = symfun(formula(symG_LTP), symvar(symG_LTP));
 symG_LTD = symfun(formula(symG_LTD), symvar(symG_LTD));
 
 %clearvars -except symG_LTP symG_LTD;
-%% Plot symbolic functions
-%LTP
-fig1 = figure;
-%fplot(symG_LTP, [0, str2double(LTP_Coeffvalues{ismember(LTP_Coeffnames, 'P_max')})]);
-fplot(symG_LTP, [0,1], 'Color', 'r', 'LineWidth', 3);
-%ylim([str2double(LTP_Coeffvalues{ismember(LTP_Coeffnames, 'G_min')}), str2double(LTP_Coeffvalues{ismember(LTP_Coeffnames, 'G_max')})]);
-xlabel('Normalized Weight');
-ylabel('G (S)');
-
-%LTD
-hold on;
-fplot(symG_LTD, [0,1], 'Color', 'b', 'LineWidth', 3);
-
-legend('LTP', 'LTD');
 
 %% Get # of pulses per LTP/LTD
 
@@ -91,21 +77,51 @@ x_LTD = rescale((0:1:LTD_nPulses)', 0, 1);
 y_LTP = double(symG_LTP(x_LTP));
 y_LTD = flipud(double(symG_LTD(x_LTD))); % LTD is flipped as to make sense as the continuation of LTP
 
-%% Plot Reference Cycle
+%% Change first n points according to a scaling factor (k)
+% To use ideal data with no changes, use k=1
+% I couldn't make this work with the scaling factor.
+% I'm commenting this and trying the other option of changing the data
+% manually
+% y_LTP_modified & y_LTD_modified must be defined to be used with the rest
+% of the script
+%{
+n = 5;
+k = 1/4;
 
-x_LTP_rescaled = rescale(x_LTP, 0, LTP_nPulses);
-x_LTD_rescaled = rescale(x_LTD, 0, LTD_nPulses) + x_LTP_rescaled(end); % x_LTP_rescaled is summed so that x_LTD is seen as the continuation of x_LTP
+y_LTP_modified = y_LTP;
+y_LTD_modified = y_LTD;
 
-fig2 = figure;
+y_LTP_modified(2:n+1) = y_LTP(2:n+1) - (y_LTP(2:n+1) .* k);
+y_LTD_modified(2:n+1) = y_LTD(2:n+1) + (y_LTD(2:n+1) .* k);
+%}
 
-plot(x_LTP_rescaled, y_LTP, 'or');
-hold on;
-plot(x_LTD_rescaled, y_LTD, 'sb');
+%% Change first points of LTP & LTD manually
+y_LTP_modified = y_LTP;
+y_LTD_modified = y_LTD;
 
-xlabel('Pulse #');
-ylabel('G (S)');
-legend('LTP', 'LTD');
+% Changes will occur here. If no changes wanted, comment this section
+% Default changes are meant for curves with G_LRS = 1e-7 & G_HRS = 1e-8
+%{
+% Change y_LTP (Lower GS)
+y_LTP_modified(2) = 2e-8;
+y_LTP_modified(3) = 4e-8;
+y_LTP_modified(4) = 5e-8;
 
+% Change y_LTD (Lower GS)
+y_LTD_modified(2) = 6e-8;
+y_LTD_modified(3) = 4e-8;
+y_LTD_modified(4) = 3e-8;
+%}
+
+% Change y_LTP (Higher GS)
+y_LTP_modified(2) = 5e-8;
+y_LTP_modified(3) = 5.5e-8;
+y_LTP_modified(4) = 5.8e-8;
+
+% Change y_LTD (Higher GS)
+y_LTD_modified(2) = 2.7e-8;
+y_LTD_modified(3) = 2.5e-8;
+y_LTD_modified(4) = 2.3e-8;
 %% Define variability
 
 pd_name = 'lognormal';
@@ -116,10 +132,6 @@ pd_param2 = 1e-1; % if sigma (1e-2 default) is multiplied by pd_param1, param2 i
 
 pd = makedist(pd_name, pd_param1_name, pd_param1, pd_param2_name, pd_param2);
 
-%% Plot cdf of pd
-fig3 = figure;
-cdfplot(random(pd, 100, 1)); % Plot ecdf with 100 points
-
 %% Get # of cycles
 
 nCycles = str2double(cell2mat(inputdlg('# of Cycles', '# of Cycles')));
@@ -127,8 +139,8 @@ nCycles = str2double(cell2mat(inputdlg('# of Cycles', '# of Cycles')));
 %% Apply variability for # of cycles
 
 % NormG
-var_y_LTP = y_LTP .* random(pd, size(y_LTP,1), nCycles);
-var_y_LTD = y_LTD .* random(pd, size(y_LTD,1), nCycles);
+var_y_LTP = y_LTP_modified .* random(pd, size(y_LTP,1), nCycles);
+var_y_LTD = y_LTD_modified .* random(pd, size(y_LTD,1), nCycles);
 
 % DeltaG/G
 %{
@@ -138,6 +150,54 @@ var_y_LTP = y_LTP + (y_LTP .* DeltaG_LTP);
 DeltaG_LTD = (y_LTD .* random(pd, size(y_LTP,1), nCycles) - y_LTD) ./ y_LTD;
 var_y_LTD = y_LTD + (y_LTD .* DeltaG_LTD);
 %}
+%% Plot symbolic functions
+%LTP Fit
+fig1 = figure;
+%LTP Data
+plot(x_LTP, y_LTP_modified, 'or', 'MarkerSize', 6);
+xlabel('Normalized Weight');
+ylabel('G (S)');
+hold on;
+
+%LTD Data
+plot(x_LTD, flipud(y_LTD_modified), 'sb', 'MarkerSize', 6); % y_LTD needs to be reflipped for this specific plot only
+
+%LTP Fit
+fplot(symG_LTP, [0,1], '--r', 'LineWidth', 2);
+
+%LTD Fit
+fplot(symG_LTD, [0,1], '--b', 'LineWidth', 2);
+
+legend('LTP Data', 'LTD Data', 'LTP Fit', 'LTD Fit');
+
+%% Plot Reference Cycle
+
+x_LTP_rescaled = rescale(x_LTP, 0, LTP_nPulses);
+x_LTD_rescaled = rescale(x_LTD, 0, LTD_nPulses) + x_LTP_rescaled(end); % x_LTP_rescaled is summed so that x_LTD is seen as the continuation of x_LTP
+
+fig2 = figure;
+
+% LTP Data
+plot(x_LTP_rescaled, y_LTP_modified, 'or', 'MarkerSize', 6);
+hold on;
+
+% LTD Data
+plot(x_LTD_rescaled, y_LTD_modified, 'sb', 'MarkerSize', 6);
+
+% LTP Fit
+plot(x_LTP_rescaled, y_LTP, '--r', 'LineWidth', 2);
+
+% LTD Fit
+plot(x_LTD_rescaled, y_LTD, '--b', 'LineWidth', 2);
+
+xlabel('Pulse #');
+ylabel('G (S)');
+legend('LTP Fit', 'LTD Fit', 'LTP Data', 'LTD Data');
+
+%% Plot cdf of pd
+fig3 = figure;
+cdfplot(random(pd, 100, 1)); % Plot ecdf with 100 points
+
 %% Plot variable cycles
 fig4 = figure;
 for i = 1:nCycles
@@ -147,17 +207,21 @@ for i = 1:nCycles
         xlabel('Pulse #');
         ylabel('G (S)');
         title('Variable LTP');
+    elseif i == nCycles
+        plot(x_LTP_rescaled, y_LTP, '-r', 'LineWidth', 2);
     end
 end
 
 fig5 = figure;
 for i = 1:nCycles
-    plot(x_LTD_rescaled, var_y_LTD(:,i), '.', 'Color', '#808080');
+    plot(x_LTP_rescaled, var_y_LTD(:,i), '.', 'Color', '#808080');
     if i == 1
         hold on;
         xlabel('Pulse #');
         ylabel('G (S)');
         title('Variable LTD');
+    elseif i == nCycles
+        plot(x_LTP_rescaled, y_LTD, '-b', 'LineWidth', 2);
     end
 end
 
@@ -194,6 +258,6 @@ xlabel('Pulse #');
 ylabel('G (S)');
 
 %% Save Data table for PedroSim
-[file, path, indx] = uiputfile;
+[file, path, indx] = uiputfile('*.mat');
 
 save(fullfile(path, file), 'Data');
