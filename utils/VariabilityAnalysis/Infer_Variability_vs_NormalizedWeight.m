@@ -112,7 +112,7 @@ y_LTD_modified(2) = 6e-8;
 y_LTD_modified(3) = 4e-8;
 y_LTD_modified(4) = 3e-8;
 %}
-
+%{
 % Change y_LTP (Higher GS)
 y_LTP_modified(2) = 5e-8;
 y_LTP_modified(3) = 5.5e-8;
@@ -122,6 +122,7 @@ y_LTP_modified(4) = 5.8e-8;
 y_LTD_modified(2) = 2.7e-8;
 y_LTD_modified(3) = 2.5e-8;
 y_LTD_modified(4) = 2.3e-8;
+%}
 %% Define variability
 
 pd_name = 'lognormal';
@@ -257,7 +258,25 @@ plot(Data.Pulse, Data.absI, '--.r');
 xlabel('Pulse #');
 ylabel('G (S)');
 
+%% Plot GS/G_LRS (%)
+% Define GS
+GS_LTP = abs(diff(y_LTP_modified));
+GS_LTD = abs(diff(y_LTD_modified));
+% Plot
+fig7 = figure;
+plot(x_LTP(2:end), (GS_LTP./max(y_LTP_modified)).*100, '-or');
+hold on;
+plot(x_LTD(2:end), (GS_LTD./max(y_LTD_modified)).*100, '-sb');
+
+xlabel('Normalized Weight');
+ylabel('GS (%)');
+ylim([0, 100]);
+
+legend('LTP', 'LTD');
+
 %% Save Data table for PedroSim
+%{
 [file, path, indx] = uiputfile('*.mat');
 
 save(fullfile(path, file), 'Data');
+%}
