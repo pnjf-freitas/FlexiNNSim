@@ -275,10 +275,12 @@ ylim([0, 100]);
 legend('LTP', 'LTD');
 
 %% Plot CDF and CDF Lookup Table
-
-[Lkp_x_LTP, Lkp_y_LTP, Lkp_z_LTP] = GenerateLookupTable(var_y_LTP, false);
-[Lkp_x_LTD, Lkp_y_LTD, Lkp_z_LTD] = GenerateLookupTable(var_y_LTD, true);
-
+try
+    [Lkp_x_LTP, Lkp_y_LTP, Lkp_z_LTP] = GenerateLookupTable(var_y_LTP, false);
+    [Lkp_x_LTD, Lkp_y_LTD, Lkp_z_LTD] = GenerateLookupTable(var_y_LTD, true);
+catch ME
+    warning(ME.message)
+end
 %% Save Data table for PedroSim
 %{
 [file, path, indx] = uiputfile('*.mat');
