@@ -130,14 +130,26 @@ clear i j;
 
 %% Generate G_Matrix
 nCycles = 100;
+G_HRS = 1e-8;
+G_LRS = 1e-7;
+
+x = linspace(G_HRS, G_LRS, nWeights)';
 
 for i = 1:nWeights
     for j = 1:2
-        Normalized_G_Matrix{j}(i,:) = random(C2CStruct.dist, ParamsData.ParamA.Y{j}(i), ParamsData.ParamB.Y{j}(i), [1, nCycles]);
+        r = randi([0,1], [nWeights, 1]);
+        r(r==0) = -1;
+        
+        %Normalized_G_Matrix = random(C2CStruct.dist, ParamsData.ParamA.Y{j}(i), ParamsData.ParamB.Y{j}(i), [1, nCycles]);
+        G_Matrix{j}(i,:) = x + (x.*r.*random(C2CStruct.dist, ParamsData.ParamA.Y{j}(i), ParamsData.ParamB.Y{j}(i), [1, nCycles])');
     end
 end
-
+%{
+for j=1:2
+    G_Matrix{j} = rescale(Normalized_G_Matrix{j}, G_HRS, G_LRS);
+end
+%}
 %% Generate lookup table
 
-[x_set, y_set, pp_set] = GenerateLookupTable(Normalized_G_Matrix{1}, false);
-[x_reset, y_reset, pp_reset] = GenerateLookupTable(Normalized_G_Matrix{2}, true);
+[x_set, y_set, pp_set] = GenerateLookupTable(G_Matrix{1}, false);
+[x_reset, y_reset, pp_reset] = GenerateLookupTable(G_Matrix{2}, true);
