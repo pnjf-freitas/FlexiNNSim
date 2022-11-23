@@ -384,8 +384,7 @@ for run = 1:SessionArgs.nRuns
                 total_ValidationLoss = [total_ValidationLoss ; lossValidation];
             end        
 
-            %% Update the network parameters using the SGDM optimizer.
-            [dlnet,velocity] = sgdmupdate(dlnet,gradients,velocity,learnRate,trainOptions.Momentum);
+            
 
             %% Display the training progress.
             if trainOptions.Plots == "training-progress"
@@ -519,6 +518,9 @@ for run = 1:SessionArgs.nRuns
                     pad(num2str(lossValidation),12,'left') + " | " + ...
                     pad(num2str(learnRate),15,'left') + " |");
             end
+            
+            %% Update the network parameters using the SGDM optimizer.
+            [dlnet,velocity] = sgdmupdate(dlnet,gradients,velocity,learnRate,trainOptions.Momentum);
 
         end
 

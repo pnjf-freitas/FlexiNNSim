@@ -36,8 +36,12 @@ for i = 1 : size(weights, 1)
     minRange_neg = min(layerWeights_neg, [], 'all');
     
     if FixedWeightRange_bool == true
-        layerWeights_pos = rescale(layerWeights_pos, 0, maxRange_pos/FixedWeightLimits(i));
-        layerWeights_neg = rescale(layerWeights_neg, minRange_neg/FixedWeightLimits(i), 0);
+        %layerWeights_pos = rescale(layerWeights_pos, 0, maxRange_pos/FixedWeightLimits(i));
+        %layerWeights_neg = rescale(layerWeights_neg, minRange_neg/FixedWeightLimits(i), 0);
+        
+        %Fix:
+        layerWeights_pos = rescale(layerWeights_pos, minRange_pos/FixedWeightLimits(i), maxRange_pos/FixedWeightLimits(i));
+        layerWeights_neg = rescale(layerWeights_neg, minRange_neg/FixedWeightLimits(i), maxRange_neg/FixedWeightLimits(i));
     else
         %Rescale to [-1,0] for neg and [0,1] for pos
         layerWeights_pos = rescale(layerWeights_pos, 0, 1);
