@@ -1,0 +1,16 @@
+[imageInputLayer([28,28,1], 'Name', 'inputlayer')
+    
+    fullyConnectedLayer(400, 'Name', 'fc1')
+    layerNormalizationLayer('Name', 'layernorm_1')
+    pwlLayer(0,1,'pwl1')
+
+    fullyConnectedLayer(200, 'Name', 'fc2')
+    layerNormalizationLayer('Name', 'layernorm_2')
+    pwlLayer(0,1,'pwl2')
+
+    fullyConnectedLayer(100, 'Name', 'fc3')
+    layerNormalizationLayer('Name', 'layernorm_3')
+    pwlLayer(0,1,'pwl3')
+
+    fullyConnectedLayer(10, 'Name', 'fc4')
+    softmaxLayer('Name', 'softmax1')];
