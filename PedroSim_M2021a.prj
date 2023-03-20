@@ -8,7 +8,7 @@
     <param.icons />
     <param.summary>Simulation Framework for testing RRAM non-idealities on standard NN training and inference algorithms</param.summary>
     <param.description />
-    <param.screenshot />
+    <param.screenshot>C:\Users\Pedro\AppData\Local\Temp\tpf36256b2_1b5a_4031_87e3_3ab2de592955.png</param.screenshot>
     <param.version>0.9</param.version>
     <param.products.name>
       <item>MATLAB</item>
@@ -41,7 +41,6 @@
       <param.icon />
       <param.icons />
       <param.description />
-      <param.screenshot />
       <param.platforms />
     </unset>
     <fileset.main>
@@ -61,13 +60,25 @@
     <matlab>
       <root>C:\Program Files\MATLAB\R2021a</root>
       <toolboxes>
+        <toolbox name="matlabcoder" />
         <toolbox name="fixedpoint" />
+        <toolbox name="matlabhdlcoder" />
         <toolbox name="neuralnetwork" />
       </toolboxes>
+      <toolbox>
+        <matlabcoder>
+          <enabled>true</enabled>
+        </matlabcoder>
+      </toolbox>
       <toolbox>
         <fixedpoint>
           <enabled>true</enabled>
         </fixedpoint>
+      </toolbox>
+      <toolbox>
+        <matlabhdlcoder>
+          <enabled>true</enabled>
+        </matlabhdlcoder>
       </toolbox>
       <toolbox>
         <neuralnetwork>
